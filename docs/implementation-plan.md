@@ -73,7 +73,7 @@ All Phase 0 work is committed to `main`. No further work in this phase.
 
 | ID | Task | Status | Owner | Deps | Effort | Acceptance criteria |
 |---|---|---|---|---|---|---|
-| P1-T01 | SQLite event log storage layer | ⏳ | — | — | 3d | New crate `crates/sync/src/log.rs`. SQLite + WAL. Tables: `envelopes(facility_id, version_id, envelope_blob, ingested_at)`, `vector_clocks(resource_id, facility_id, counter)`, `causal_edges(version_id, parent_version_id)`. Append-only — no UPDATE, no DELETE. Migration via sqlx. Unit tests cover insert + query by resource_id. |
+| P1-T01 | SQLite event log storage layer | ✅ | PatientSpace Dev | — | 3d | New crate `crates/sync/src/log.rs`. SQLite + WAL. Tables: `envelopes(facility_id, version_id, envelope_blob, ingested_at)`, `vector_clocks(resource_id, facility_id, counter)`, `causal_edges(version_id, parent_version_id)`. Append-only — no UPDATE, no DELETE. Migration via sqlx. Unit tests cover insert + query by resource_id. |
 | P1-T02 | Envelope encode/decode round-trip over SQLite | ⏳ | — | P1-T01 | 2d | Round-trip a sealed envelope through the SQLite log and verify the bytes match. Test: write 1000 random envelopes, read them all back, verify each `to_cbor()` matches what was stored. |
 | P1-T03 | Sync agent: handshake + push (facility → hub) | ⏳ | — | P1-T02 | 4d | New module `crates/sync/src/agent.rs`. Tokio task. Performs `POST /psep/v1/handshake`, then `POST /psep/v1/push` with CBOR-seq body. Idempotent. Retries with additive backoff: 5s → 10s → 30s → 60s → 5min cap. Logs structured JSON to `~/.patientspace/logs/sync.jsonl`. |
 | P1-T04 | Sync agent: pull (hub → facility) | ⏳ | — | P1-T03 | 3d | `POST /psep/v1/pull` + `POST /psep/v1/pull-ack`. Resumable from last acked `version_id`. Hub stub in `crates/hub` upgraded to actually serve from its own SQLite log. |
@@ -353,3 +353,4 @@ Quick reference for terms used throughout this plan. Cross-reference with `docs/
 | Date | Change | Author |
 |---|---|---|
 | 2026-10-15 | Initial plan created. Phase 0 fully ✅. Phase 1 task list defined (30 tasks across 5 epics). | PatientSpace Dev |
+| 2026-10-15 | P1-T01 (SQLite event log) ✅. Added `crates/sync/src/log.rs` + `crates/sync/migrations/20261015000001_init.sql`. 14 new unit tests (26 total in sync crate, 30 across workspace). | PatientSpace Dev |

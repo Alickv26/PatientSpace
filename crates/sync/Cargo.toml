@@ -17,6 +17,7 @@ chrono.workspace = true
 thiserror.workspace = true
 anyhow.workspace = true
 tracing.workspace = true
+sqlx.workspace = true
 
 # Crypto
 ed25519-dalek.workspace = true
@@ -30,3 +31,4 @@ rand_core.workspace = true
 
 [dev-dependencies]
 tokio.workspace = true
+tempfile = "3"
