@@ -1,0 +1,39 @@
+# Rust
+/target
+**/*.rs.bk
+*.pdb
+*.swp
+
+# SvelteKit / Node
+/frontend/node_modules
+/frontend/.svelte-kit
+/frontend/build
+/frontend/.bun
+/frontend/dist
+node_modules/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+.vscode/
+.idea/
+*.iml
+
+# Env & secrets
+.env
+.env.*
+!.env.example
+
+# Local databases
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+patientspace.db*
+
+# Local keys (never commit these — see docs/sync-protocol.md §5.6)
+*.key
+*.pem
+keystore/

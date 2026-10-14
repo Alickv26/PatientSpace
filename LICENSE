@@ -1,0 +1,13 @@
+PatientSpace is licensed under the GNU Affero General Public License v3.0 or later
+(SPDX-License-Identifier: AGPL-3.0-or-later).
+
+The full text of the license is available at:
+https://www.gnu.org/licenses/agpl-3.0.txt
+
+A copy of the license text should be obtained from the above URL and placed
+in this file before any public distribution of PatientSpace source code.
+
+Source files in this repository carry the SPDX-License-Identifier header
+inline (e.g. `// SPDX-License-Identifier: AGPL-3.0-or-later`).
+
+Copyright (c) 2026 PatientSpace Foundation and contributors.

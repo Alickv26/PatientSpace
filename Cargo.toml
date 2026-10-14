@@ -1,0 +1,87 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/core",
+    "crates/hub",
+    "crates/fhir",
+    "crates/sync",
+    "crates/analytics",
+    "crates/auth",
+    "crates/smartcare-adapter",
+    "crates/shared",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.99"
+authors = ["PatientSpace Foundation"]
+license = "AGPL-3.0-or-later"
+repository = "https://github.com/Alickv26/PatientSpace"
+homepage = "https://patientspace.org"
+
+[workspace.dependencies]
+# Async runtime
+tokio = { version = "1.47", features = ["full"] }
+
+# Web framework
+axum = { version = "0.8", features = ["macros"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors", "trace", "compression-br", "limit"] }
+
+# Database
+sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "sqlite", "postgres", "uuid", "chrono", "macros", "migrate"] }
+duckdb = { version = "1.1", features = ["bundled"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+ciborium = "0.2"          # CBOR encoding (RFC 8949)
+ciborium-io = "0.2"
+
+# Crypto
+ed25519-dalek = { version = "3.0", features = ["rand_core", "pkcs8", "serde"] }
+x25519-dalek = { version = "3.0", features = ["static_secrets", "serde"] }
+aes-gcm = "0.10"
+sha2 = "0.10"
+hmac = "0.12"
+blake3 = "1.5"
+rand = "0.10"
+rand_core = "0.10"
+# libsodium-sealed-box equivalent: use crypto_box
+crypto_box = { version = "0.9", features = ["alloc", "std"] }
+
+# IDs
+uuid = { version = "1.18", features = ["v7", "serde"] }
+
+# Time
+chrono = { version = "0.4", features = ["serde"] }
+
+# Errors & logging
+thiserror = "2.0"
+anyhow = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# Config
+config = "0.14"
+dotenvy = "0.15"
+
+# Internal crates (path)
+patientspace-shared = { path = "crates/shared" }
+patientspace-fhir = { path = "crates/fhir" }
+patientspace-sync = { path = "crates/sync" }
+patientspace-auth = { path = "crates/auth" }
+patientspace-analytics = { path = "crates/analytics" }
+patientspace-smartcare-adapter = { path = "crates/smartcare-adapter" }
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = "symbols"
+panic = "abort"
+
+[profile.dev]
+opt-level = 0
+debug = true

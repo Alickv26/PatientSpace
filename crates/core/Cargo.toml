@@ -1,0 +1,36 @@
+[package]
+name = "patientspace-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "patientspace-core"
+path = "src/main.rs"
+
+[dependencies]
+patientspace-shared.workspace = true
+patientspace-fhir.workspace = true
+patientspace-sync.workspace = true
+patientspace-auth.workspace = true
+patientspace-analytics.workspace = true
+patientspace-smartcare-adapter.workspace = true
+
+tokio.workspace = true
+axum.workspace = true
+tower.workspace = true
+tower-http.workspace = true
+sqlx.workspace = true
+# duckdb will be added back when we wire up real analytics queries.
+# duckdb.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+config.workspace = true
+dotenvy.workspace = true
