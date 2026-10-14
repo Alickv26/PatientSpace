@@ -124,13 +124,16 @@ All queries run against the same event log, materialized as Parquet/Arrow. No ex
 - AI clinical decision support beyond simple rule-based alerts
 - Multi-country localization (Zambia-first; pan-African expansion post-pilot)
 
-## Immediate next steps (recommended order)
+## Immediate next steps
 
-1. **Scaffold the workspace** — Cargo workspace + SvelteKit frontend skeleton + CI. (Next concrete task.)
-2. ~~Write `docs/sync-protocol.md`~~ ✅ Done — PSEP v0.1 drafted.
-3. **Write `docs/architecture.md` and `docs/data-model.md`** — flesh out the crate-level architecture and the custom internal store schema that sits behind the FHIR facade.
-4. **Prototype `crates/sync`** — PSEP envelope encode/decode + vector clock + sealed-box encryption + SQLite log. Prove offline + reconciliation on two laptops before scaling.
-5. **Prototype `crates/fhir` + a single resource (Patient)** — get one FHIR R5 resource round-tripping through the custom store.
-6. **Build `crates/smartcare-adapter` stub** — implement `SmartCareFhirAdapter` against a mock SmartCare HIE endpoint. Used for migration dry-runs.
-7. **Build the Petauke minimum workflow** — registration → triage → consultation → prescription → pharmacy dispense. Five Svelte screens, one event log, one DuckDB dashboard.
-8. **MoH + Petauke IT engagement** — confirm SmartCare access mode (FHIR vs DB vs CSV) for the migration adapter; negotiate OAuth client for PSEP hub; agree on go-live date.
+The full task-by-task plan is in [`docs/implementation-plan.md`](./docs/implementation-plan.md). Phase 0 (foundation) is complete. Phase 1 (MVP foundations) is the current focus.
+
+The next available task is **P1-T01: SQLite event log storage layer** — it has no unmet dependencies and unblocks the entire PSEP sync end-to-end epic. After that, the critical path runs:
+
+1. P1-T01 → P1-T02 → P1-T03 → P1-T04 → P1-T06 (sync end-to-end works on two laptops)
+2. P1-T09 → P1-T10 → P1-T11 → P1-T12 (FHIR Patient round-trip in core)
+3. P1-T14 → P1-T15 → P1-T16 (SmartCare mock migration)
+4. P1-T18 → P1-T19 → P1-T20 (Petauke minimum workflow UI)
+5. P1-T26 → P1-T27 → P1-T28 (Docker dev environment)
+
+P1-T09 (custom internal store schema) and P1-T14 (mock SmartCare HIE) are independent of the sync epic and can be picked up in parallel.

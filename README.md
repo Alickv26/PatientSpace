@@ -78,6 +78,7 @@ cargo test --workspace
 - [`research-smartcare.md`](./research-smartcare.md) — what SmartCare is, how it's used, its limitations, and the landscape of open + closed source alternatives.
 - [`direction.md`](./direction.md) — the 10 locked-in product & architecture decisions, including the Svelte-vs-React rationale.
 - [`docs/sync-protocol.md`](./docs/sync-protocol.md) — PSEP v0.1 sync protocol: envelopes, vector clocks, sealed-box encryption, conflict resolution, HTTPS + sneakernet transports, and SmartCare migration.
+- [`docs/implementation-plan.md`](./docs/implementation-plan.md) — the canonical task list. Agents pick up ⏳ tasks from here and update status as work progresses. Phase 0 is complete; Phase 1 is in progress.
 
 ## License
 
