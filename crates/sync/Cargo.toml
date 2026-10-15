@@ -19,6 +19,12 @@ anyhow.workspace = true
 tracing.workspace = true
 sqlx.workspace = true
 
+# Async runtime & HTTP
+tokio.workspace = true
+tokio-util.workspace = true
+reqwest.workspace = true
+base64.workspace = true
+
 # Crypto
 ed25519-dalek.workspace = true
 x25519-dalek.workspace = true
@@ -31,4 +37,6 @@ rand_core.workspace = true
 
 [dev-dependencies]
 tokio.workspace = true
+axum.workspace = true
+tower.workspace = true
 tempfile = "3"

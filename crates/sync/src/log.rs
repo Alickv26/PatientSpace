@@ -308,6 +308,22 @@ impl EventLog {
         Ok(n as u64)
     }
 
+    /// Fetch all envelopes in the log, newest first by `created_at_unix_ms`.
+    /// Used by the hub's pull endpoint to enumerate every version it holds
+    /// (the hub then filters by the requesting facility's vector clock).
+    pub async fn list_all(&self, limit: u32) -> LogResult<Vec<Envelope>> {
+        let rows = sqlx::query(
+            r#"SELECT envelope_blob FROM envelopes
+               ORDER BY created_at_unix_ms DESC
+               LIMIT ?"#,
+        )
+        .bind(limit as i64)
+        .fetch_all(&self.pool)
+        .await?;
+
+        decode_rows(rows)
+    }
+
     // -----------------------------------------------------------------
     // Vector clock queries
     // -----------------------------------------------------------------
@@ -413,6 +429,56 @@ impl EventLog {
             children.push(VersionId(uuid));
         }
         Ok(children)
+    }
+
+    // -----------------------------------------------------------------
+    // Sync state (watermarks, session metadata)
+    // -----------------------------------------------------------------
+
+    /// Get a sync-state value for a facility. Returns `None` if the key
+    /// has never been set. Used by the sync agent to track watermarks like
+    /// `last_push_ingested_ms`.
+    pub async fn get_sync_state(
+        &self,
+        facility_id: &FacilityId,
+        key: &str,
+    ) -> LogResult<Option<Vec<u8>>> {
+        let row = sqlx::query(
+            r#"SELECT value FROM sync_state WHERE facility_id = ? AND key = ?"#,
+        )
+        .bind(facility_id.as_str())
+        .bind(key)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        match row {
+            Some(row) => {
+                let value: Vec<u8> = row.try_get("value")?;
+                Ok(Some(value))
+            }
+            None => Ok(None),
+        }
+    }
+
+    /// Set a sync-state value for a facility. Idempotent (upserts).
+    pub async fn set_sync_state(
+        &self,
+        facility_id: &FacilityId,
+        key: &str,
+        value: &[u8],
+    ) -> LogResult<()> {
+        sqlx::query(
+            r#"INSERT INTO sync_state (facility_id, key, value)
+               VALUES (?, ?, ?)
+               ON CONFLICT (facility_id, key) DO UPDATE
+                 SET value = excluded.value"#,
+        )
+        .bind(facility_id.as_str())
+        .bind(key)
+        .bind(value)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
     }
 }
 

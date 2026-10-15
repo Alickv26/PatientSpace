@@ -9,6 +9,10 @@ license.workspace = true
 name = "patientspace-hub"
 path = "src/main.rs"
 
+[lib]
+name = "patientspace_hub"
+path = "src/lib.rs"
+
 [dependencies]
 patientspace-shared.workspace = true
 patientspace-sync.workspace = true
@@ -19,8 +23,22 @@ tower-http.workspace = true
 sqlx.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+ciborium.workspace = true
+uuid.workspace = true
+chrono.workspace = true
 thiserror.workspace = true
 anyhow.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 dotenvy.workspace = true
+ed25519-dalek.workspace = true
+base64.workspace = true
+rand.workspace = true
+
+[dev-dependencies]
+reqwest.workspace = true
+ciborium.workspace = true
+serde_json.workspace = true
+patientspace-shared.workspace = true
+patientspace-sync.workspace = true
+tokio.workspace = true

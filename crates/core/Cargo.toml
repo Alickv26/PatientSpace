@@ -9,6 +9,10 @@ license.workspace = true
 name = "patientspace-core"
 path = "src/main.rs"
 
+[lib]
+name = "patientspace_core"
+path = "src/lib.rs"
+
 [dependencies]
 patientspace-shared.workspace = true
 patientspace-fhir.workspace = true
@@ -34,3 +38,6 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 config.workspace = true
 dotenvy.workspace = true
+
+[dev-dependencies]
+reqwest.workspace = true

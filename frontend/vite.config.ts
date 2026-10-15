@@ -9,6 +9,13 @@ export default defineConfig({
       // SvelteKit 3.x: config is passed inline.
       adapter: (await import('@sveltejs/adapter-node')).default(),
       extensions: ['.svelte'],
+      // SvelteKit 3 deprecated the built-in `$lib` alias. Re-add it here so
+      // existing imports keep working — `svelte-kit sync` writes these paths
+      // into the generated `node_modules/$app/tsconfig.json`, so svelte-check
+      // / tsserver can resolve them.
+      alias: {
+        $lib: 'src/lib',
+      },
     }),
   ],
   server: {
