@@ -74,23 +74,23 @@ All Phase 0 work is committed to `main`. No further work in this phase.
 | ID | Task | Status | Owner | Deps | Effort | Acceptance criteria |
 |---|---|---|---|---|---|---|
 | P1-T01 | SQLite event log storage layer | ✅ | PatientSpace Dev | — | 3d | New crate `crates/sync/src/log.rs`. SQLite + WAL. Tables: `envelopes(facility_id, version_id, envelope_blob, ingested_at)`, `vector_clocks(resource_id, facility_id, counter)`, `causal_edges(version_id, parent_version_id)`. Append-only — no UPDATE, no DELETE. Migration via sqlx. Unit tests cover insert + query by resource_id. |
-| P1-T02 | Envelope encode/decode round-trip over SQLite | ⏳ | — | P1-T01 | 2d | Round-trip a sealed envelope through the SQLite log and verify the bytes match. Test: write 1000 random envelopes, read them all back, verify each `to_cbor()` matches what was stored. |
-| P1-T03 | Sync agent: handshake + push (facility → hub) | ⏳ | — | P1-T02 | 4d | New module `crates/sync/src/agent.rs`. Tokio task. Performs `POST /psep/v1/handshake`, then `POST /psep/v1/push` with CBOR-seq body. Idempotent. Retries with additive backoff: 5s → 10s → 30s → 60s → 5min cap. Logs structured JSON to `~/.patientspace/logs/sync.jsonl`. |
-| P1-T04 | Sync agent: pull (hub → facility) | ⏳ | — | P1-T03 | 3d | `POST /psep/v1/pull` + `POST /psep/v1/pull-ack`. Resumable from last acked `version_id`. Hub stub in `crates/hub` upgraded to actually serve from its own SQLite log. |
-| P1-T05 | Hub: real handshake + push + pull endpoints | ⏳ | — | P1-T01 | 4d | `crates/hub` gets SQLite + the three endpoints per `docs/sync-protocol.md` §7. Signature verification on push. Idempotent dedup on `(version_id)`. Pull streams in causal-DAG order. |
-| P1-T06 | Two-instance integration test | ⏳ | — | P1-T04, P1-T05 | 3d | `crates/sync/tests/two_instance.rs`. Spin up two `core` binaries + one `hub` on localhost. Create a Patient at Facility A, sync, verify Facility B can decrypt it. Simulate partition (kill hub), create at A, restore hub, sync, verify B receives. |
-| P1-T07 | Conflict detection integration test | ⏳ | — | P1-T06 | 2d | Both facilities edit the same Patient concurrently (vector clocks diverge). Sync. Both facilities flag the conflict. Merge-policy.toml applied; auto-mergeable fields merged, `clinical_review` fields surface as conflict extension. |
-| P1-T08 | Sneakernet export/import | ⏳ | — | P1-T02 | 3d | `patientspace export --to /media/usb` writes a `.psep` CBOR-seq file with header + payload + trailer per §8. `patientspace import --from /media/usb` ingests. Round-trip test with bit-flip injection verifies signature rejection. |
+| P1-T02 | Envelope encode/decode round-trip over SQLite | ✅ | Alickv26 | P1-T01 | 2d | Round-trip a sealed envelope through the SQLite log and verify the bytes match. Test: write 1000 random envelopes, read them all back, verify each `to_cbor()` matches what was stored. |
+| P1-T03 | Sync agent: handshake + push (facility → hub) | ✅ | Alickv26 | P1-T02 | 4d | New module `crates/sync/src/agent.rs`. Tokio task. Performs `POST /psep/v1/handshake`, then `POST /psep/v1/push` with CBOR-seq body. Idempotent. Retries with additive backoff: 5s → 10s → 30s → 60s → 5min cap. Logs structured JSON to `~/.patientspace/logs/sync.jsonl`. |
+| P1-T04 | Sync agent: pull (hub → facility) | ✅ | Alickv26 | P1-T03 | 3d | `POST /psep/v1/pull` + `POST /psep/v1/pull-ack`. Resumable from last acked `version_id`. Hub stub in `crates/hub` upgraded to actually serve from its own SQLite log. |
+| P1-T05 | Hub: real handshake + push + pull endpoints | ✅ | Alickv26 | P1-T01 | 4d | `crates/hub` gets SQLite + the three endpoints per `docs/sync-protocol.md` §7. Signature verification on push. Idempotent dedup on `(version_id)`. Pull streams in causal-DAG order. |
+| P1-T06 | Two-instance integration test | ✅ | Alickv26 | P1-T04, P1-T05 | 3d | `crates/sync/tests/two_instance.rs`. Spin up two `core` binaries + one `hub` on localhost. Create a Patient at Facility A, sync, verify Facility B can decrypt it. Simulate partition (kill hub), create at A, restore hub, sync, verify B receives. |
+| P1-T07 | Conflict detection integration test | ✅ | Alickv26 | P1-T06 | 2d | Both facilities edit the same Patient concurrently (vector clocks diverge). Sync. Both facilities flag the conflict. Merge-policy.toml applied; auto-mergeable fields merged, `clinical_review` fields surface as conflict extension. |
+| P1-T08 | Sneakernet export/import | ✅ | Alickv26 | P1-T02 | 3d | `patientspace export --to /media/usb` writes a `.psep` CBOR-seq file with header + payload + trailer per §8. `patientspace import --from /media/usb` ingests. Round-trip test with bit-flip injection verifies signature rejection. |
 
 ### Epic P1-E2: FHIR Patient persistence in `core`
 
 | ID | Task | Status | Owner | Deps | Effort | Acceptance criteria |
 |---|---|---|---|---|---|---|
-| P1-T09 | Custom internal store schema | ⏳ | — | — | 3d | `docs/data-model.md` written. SQLite tables for `resources`, `versions`, `current_version_per_resource`. Decoupled from FHIR JSON shape — FHIR is the API, not the storage. Review with the team before implementing. |
-| P1-T10 | `POST /fhir/Patient` end-to-end | ⏳ | — | P1-T09 | 3d | Svelte sends a Patient JSON → axum handler validates → wraps in PSEP `EnvelopeBuilder` → seals with author facility key → writes to SQLite log → returns 201 with the resource. Acceptance: `curl -X POST` works, the envelope is queryable in the log. |
-| P1-T11 | `GET /fhir/Patient/{id}` end-to-end | ⏳ | — | P1-T10 | 2d | Reads the latest version for a resource from the log, decrypts, returns the FHIR JSON. 404 if not found. Handles conflict state by returning the merged shell + a `conflict` extension. |
-| P1-T12 | `GET /fhir/Patient` (Bundle, list) | ⏳ | — | P1-T11 | 2d | Returns a FHIR Bundle of all Patients at this facility. Supports `_count` (default 50, max 200) and `_offset` for pagination. |
-| P1-T13 | Patient search by Smartcard / NRC | ⏳ | — | P1-T12 | 1d | `GET /fhir/Patient?identifier=SC-12345678` works. Index on the `identifier` array. |
+| P1-T09 | Custom internal store schema | ✅ | Alickv26 | — | 3d | `docs/data-model.md` written. SQLite tables for `resources`, `versions`, `current_version_per_resource`. Decoupled from FHIR JSON shape — FHIR is the API, not the storage. Review with the team before implementing. |
+| P1-T10 | `POST /fhir/Patient` end-to-end | ✅ | Alickv26 | P1-T09 | 3d | Svelte sends a Patient JSON → axum handler validates → wraps in PSEP `EnvelopeBuilder` → seals with author facility key → writes to SQLite log → returns 201 with the resource. Acceptance: `curl -X POST` works, the envelope is queryable in the log. |
+| P1-T11 | `GET /fhir/Patient/{id}` end-to-end | ✅ | Alickv26 | P1-T10 | 2d | Reads the latest version for a resource from the log, decrypts, returns the FHIR JSON. 404 if not found. Handles conflict state by returning the merged shell + a `conflict` extension. |
+| P1-T12 | `GET /fhir/Patient` (Bundle, list) | ✅ | Alickv26 | P1-T11 | 2d | Returns a FHIR Bundle of all Patients at this facility. Supports `_count` (default 50, max 200) and `_offset` for pagination. |
+| P1-T13 | Patient search by Smartcard / NRC | ✅ | Alickv26 | P1-T12 | 1d | `GET /fhir/Patient?identifier=SC-12345678` works. Index on the `identifier` array. |
 
 ### Epic P1-E3: SmartCare migration adapter (mock)
 
@@ -105,14 +105,14 @@ All Phase 0 work is committed to `main`. No further work in this phase.
 
 | ID | Task | Status | Owner | Deps | Effort | Acceptance criteria |
 |---|---|---|---|---|---|---|
-| P1-T18 | Patient registration screen → `POST /Patient` | ⏳ | — | P1-T10 | 2d | `/patients/new` form (Smartcard, NRC, name, phone, DOB, gender) → POST to `/fhir/Patient` → redirect to `/patients/{id}` on success. Validation errors shown inline. |
-| P1-T19 | Patient list screen → `GET /Patient` | ⏳ | — | P1-T12 | 1d | `/patients` shows a table: Smartcard, NRC, Name, Gender, DOB. Pagination. Click row → `/patients/{id}`. |
-| P1-T20 | Patient detail screen → `GET /Patient/{id}` | ⏳ | — | P1-T11 | 2d | `/patients/{id}` shows demographics, identifiers, contact, address. Tabs for Encounters / Observations / Medications (empty in v0.1). Conflict banner if `conflict` extension present. |
-| P1-T21 | Patient search box | ⏳ | — | P1-T13, P1-T19 | 1d | Top of `/patients` page: search by Smartcard or NRC. Debounced 300ms. |
-| P1-T22 | Triage encounter screen (stub) | ⏳ | — | — | 2d | `/encounters/triage?patient={id}` form: vitals (BP, HR, temp, weight), presenting complaint, triage category. POST stubbed — saves to local state only for now. |
-| P1-T23 | Consultation encounter screen (stub) | ⏳ | — | P1-T22 | 2d | `/encounters/consultation?patient={id}&encounter={id}` form: diagnosis (ICD-10 autocomplete), notes, plan. POST stubbed. |
-| P1-T24 | Prescription screen (stub) | ⏳ | — | P1-T23 | 2d | `/encounters/prescribe?encounter={id}` form: medication (ATC autocomplete), dose, frequency, duration. POST stubbed. |
-| P1-T25 | Pharmacy dispense screen (stub) | ⏳ | — | P1-T24 | 1d | `/pharmacy/dispense?request={id}` form: confirm dispense, quantity, batch. POST stubbed. |
+| P1-T18 | Patient registration screen → `POST /Patient` | ✅ | Alickv26 | P1-T10 | 2d | `/patients/new` form (Smartcard, NRC, name, phone, DOB, gender) → POST to `/fhir/Patient` → redirect to `/patients/{id}` on success. Validation errors shown inline. |
+| P1-T19 | Patient list screen → `GET /Patient` | ✅ | Alickv26 | P1-T12 | 1d | `/patients` shows a table: Smartcard, NRC, Name, Gender, DOB. Pagination. Click row → `/patients/{id}`. |
+| P1-T20 | Patient detail screen → `GET /Patient/{id}` | ✅ | Alickv26 | P1-T11 | 2d | `/patients/{id}` shows demographics, identifiers, contact, address. Tabs for Encounters / Observations / Medications (empty in v0.1). Conflict banner if `conflict` extension present. |
+| P1-T21 | Patient search box | ✅ | Alickv26 | P1-T13, P1-T19 | 1d | Top of `/patients` page: search by Smartcard or NRC. Debounced 300ms. |
+| P1-T22 | Triage encounter screen (stub) | ✅ | Alickv26 | — | 2d | `/encounters/triage?patient={id}` form: vitals (BP, HR, temp, weight), presenting complaint, triage category. POST stubbed — saves to local state only for now. |
+| P1-T23 | Consultation encounter screen (stub) | ✅ | Alickv26 | P1-T22 | 2d | `/encounters/consultation?patient={id}&encounter={id}` form: diagnosis (ICD-10 autocomplete), notes, plan. POST stubbed. |
+| P1-T24 | Prescription screen (stub) | ✅ | Alickv26 | P1-T23 | 2d | `/encounters/prescribe?encounter={id}` form: medication (ATC autocomplete), dose, frequency, duration. POST stubbed. |
+| P1-T25 | Pharmacy dispense screen (stub) | ✅ | Alickv26 | P1-T24 | 1d | `/pharmacy/dispense?request={id}` form: confirm dispense, quantity, batch. POST stubbed. |
 
 ### Epic P1-E5: DevOps
 
