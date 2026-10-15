@@ -48,7 +48,7 @@ async fn main() -> anyhow::Result<()> {
         .with_state(state);
 
     let bind = std::env::var("PATIENTSPACE_HUB_BIND")
-        .unwrap_or_else(|_| "0.0.0.0:8080".to_string());
+        .unwrap_or_else(|_| "0.0.0.0:8081".to_string());
     let addr: SocketAddr = bind.parse()?;
     let listener = tokio::net::TcpListener::bind(addr).await?;
     tracing::info!(%addr, "patientspace-hub listening");

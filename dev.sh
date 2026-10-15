@@ -130,6 +130,8 @@ cmd_start() {
     info "  Rust build complete"
 
     # 2. Start hub
+    PATIENTSPACE_HUB_BIND=0.0.0.0:8081 \
+    PATIENTSPACE_HUB_DATABASE_URL="sqlite:${ROOT_DIR}/patientspace-hub.db?mode=rwc" \
     start_process "hub" \
         cargo run -p patientspace-hub
     if [[ $? -ne 0 ]]; then
@@ -137,10 +139,10 @@ cmd_start() {
         exit 1
     fi
 
-    # Wait for hub to be ready
+    # Wait for hub to be ready (cargo run may need to compile, give 60s)
     info "Waiting for hub to be ready..."
     local hub_ready=false
-    for i in $(seq 1 15); do
+    for i in $(seq 1 60); do
         if curl -sf http://127.0.0.1:8081/health &>/dev/null; then
             info "  Hub is ready"
             hub_ready=true
@@ -149,7 +151,7 @@ cmd_start() {
         sleep 1
     done
     if [[ "$hub_ready" != "true" ]]; then
-        error "Hub did not become ready in 15s. Check $LOG_DIR/hub.log"
+        error "Hub did not become ready in 60s. Check $LOG_DIR/hub.log"
         tail -20 "$LOG_DIR/hub.log" 2>/dev/null
         exit 1
     fi
@@ -169,10 +171,10 @@ cmd_start() {
         exit 1
     fi
 
-    # Wait for core to be ready
+    # Wait for core to be ready (cargo run may need to compile, give 60s)
     info "Waiting for core to be ready..."
     local core_ready=false
-    for i in $(seq 1 15); do
+    for i in $(seq 1 60); do
         if curl -sf http://127.0.0.1:8080/health &>/dev/null; then
             info "  Core is ready"
             core_ready=true
@@ -181,7 +183,7 @@ cmd_start() {
         sleep 1
     done
     if [[ "$core_ready" != "true" ]]; then
-        error "Core did not become ready in 15s. Check $LOG_DIR/core.log"
+        error "Core did not become ready in 60s. Check $LOG_DIR/core.log"
         tail -20 "$LOG_DIR/core.log" 2>/dev/null
         exit 1
     fi
