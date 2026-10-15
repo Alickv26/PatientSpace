@@ -33,7 +33,12 @@
       patients = result.patients;
       total = result.total;
     } catch (err) {
-      error = err instanceof Error ? err.message : 'Failed to load patients';
+      const msg = err instanceof Error ? err.message : 'Failed to load patients';
+      if (msg.includes('502') || msg.includes('Failed to fetch') || msg.includes('fetch')) {
+        error = 'Cannot connect to PatientSpace backend. Make sure the Rust core binary is running on port 8080. Run: cargo run -p patientspace-core';
+      } else {
+        error = msg;
+      }
       patients = [];
     } finally {
       loading = false;

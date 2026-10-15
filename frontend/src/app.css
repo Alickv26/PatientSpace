@@ -167,6 +167,10 @@ input[type='date'] {
   min-height: 100vh;
   min-height: 100dvh;
 }
+/* When offline banner is present, add a row for it */
+.app-shell.has-offline {
+  grid-template-rows: auto auto 1fr;
+}
 
 /* ---- Top bar ---- */
 .app-header {

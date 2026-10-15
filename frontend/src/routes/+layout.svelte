@@ -83,7 +83,7 @@
   ];
 </script>
 
-<div class="app-shell">
+<div class="app-shell" class:has-offline={!online}>
   <!-- Top bar -->
   <header class="app-header">
     <button class="icon hamburger" onclick={() => (drawerOpen = true)} aria-label="Menu">
@@ -92,7 +92,7 @@
     <div class="brand">PatientSpace</div>
     <!-- Desktop nav -->
     <nav>
-      {#each navItems.slice(0, 4) as item}
+      {#each navItems as item}
         <a href={item.href} class={isActive(item.href) ? 'active' : ''}>{item.label}</a>
       {/each}
     </nav>

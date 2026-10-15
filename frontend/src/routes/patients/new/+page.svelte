@@ -21,7 +21,7 @@
         smartcardNo: smartcard || undefined,
         nrc: nrc || undefined,
         familyName: familyName || undefined,
-        givenNames: givenName ? [givenName] : undefined,
+        givenNames: givenName || undefined,
         phone: phone || undefined,
         gender,
         birthDate: birthDate || undefined,
