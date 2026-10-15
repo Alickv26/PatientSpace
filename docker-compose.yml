@@ -1,0 +1,92 @@
+# PatientSpace local development environment.
+#
+# Usage:
+#   docker compose up          # start hub + core + frontend
+#   docker compose up -d       # start in background
+#   docker compose down        # stop and remove containers
+#   docker compose down -v     # also remove data volumes
+#
+# After startup:
+#   - Frontend: http://localhost:5173
+#   - Core API: http://localhost:8080/health
+#   - Hub:      http://localhost:8081/psep/v1/ping
+#
+# The frontend proxies /fhir, /health, /psep to the core on port 8080.
+# The core syncs to the hub on port 8081.
+
+services:
+  # ---- Hub (national/provincial relay) ----
+  hub:
+    build:
+      context: .
+      dockerfile: crates/hub/Dockerfile
+    ports:
+      - "8081:8081"
+    volumes:
+      - hub-data:/data
+    environment:
+      PATIENTSPACE_HUB_BIND: "0.0.0.0:8081"
+      PATIENTSPACE_HUB_DATABASE_URL: "sqlite:///data/hub.db?mode=rwc"
+      RUST_LOG: "info,patientspace=debug"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8081/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - patientspace
+
+  # ---- Core (facility binary) ----
+  core:
+    build:
+      context: .
+      dockerfile: crates/core/Dockerfile
+    ports:
+      - "8080:8080"
+    volumes:
+      - core-data:/data
+    environment:
+      PATIENTSPACE_FACILITY_ID: "F-DOCKER1"
+      PATIENTSPACE_BIND: "0.0.0.0:8080"
+      PATIENTSPACE_DATABASE_URL: "sqlite:///data/patientspace.db?mode=rwc"
+      PATIENTSPACE_HUB_URL: "http://hub:8081"
+      RUST_LOG: "info,patientspace=debug"
+    depends_on:
+      hub:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - patientspace
+
+  # ---- Frontend (SvelteKit dev server) ----
+  frontend:
+    image: node:22-slim
+    working_dir: /app
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      # Vite proxy: forward /fhir, /health, /psep to the core container.
+      VITE_PROXY_TARGET: "http://core:8080"
+    depends_on:
+      core:
+        condition: service_healthy
+    networks:
+      - patientspace
+
+volumes:
+  hub-data:
+  core-data:
+
+networks:
+  patientspace:
+    driver: bridge

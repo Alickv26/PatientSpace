@@ -118,10 +118,10 @@ All Phase 0 work is committed to `main`. No further work in this phase.
 
 | ID | Task | Status | Owner | Deps | Effort | Acceptance criteria |
 |---|---|---|---|---|---|---|
-| P1-T26 | Dockerfile for `patientspace-core` | ⏳ | — | P1-T04 | 1d | Multi-stage Rust build, distroless final image, < 50MB. Runs as non-root. `EXPOSE 8080`. |
-| P1-T27 | Dockerfile for `patientspace-hub` | ⏳ | — | P1-T05 | 1d | Same pattern as core. `EXPOSE 8081`. |
-| P1-T28 | `docker-compose.yml` for local dev | ⏳ | — | P1-T26, P1-T27 | 1d | Brings up 1 hub + 1 core + the Svelte frontend on a single network. Volumes for SQLite. `docker compose up` → working dev environment in < 60s. |
-| P1-T29 | Seed script with synthetic data | ⏳ | — | P1-T16 | 2d | `scripts/seed.rs` (or `.ts`) generates 50 synthetic patients, 200 encounters, 400 observations via the migration CLI. Idempotent. Useful for demos. |
+| P1-T26 | Dockerfile for `patientspace-core` | ✅ | Alickv26 | P1-T04 | 1d | Multi-stage Rust build, distroless final image, < 50MB. Runs as non-root. `EXPOSE 8080`. |
+| P1-T27 | Dockerfile for `patientspace-hub` | ✅ | Alickv26 | P1-T05 | 1d | Same pattern as core. `EXPOSE 8081`. |
+| P1-T28 | `docker-compose.yml` for local dev | ✅ | Alickv26 | P1-T26, P1-T27 | 1d | Brings up 1 hub + 1 core + the Svelte frontend on a single network. Volumes for SQLite. `docker compose up` → working dev environment in < 60s. |
+| P1-T29 | Seed script with synthetic data | ✅ | Alickv26 | P1-T16 | 2d | `scripts/seed.ts` (or `.ts`) generates 50 synthetic patients, 200 encounters, 400 observations via the migration CLI. Idempotent. Useful for demos. |
 | P1-T30 | Release artifact: single static binary | 🅿️ | — | — | 2d | `cargo build --release --target x86_64-unknown-linux-musl` produces a single static binary for `patientspace-core` < 30MB. Deferred to Phase 2 — not needed for dev. |
 
 ---
