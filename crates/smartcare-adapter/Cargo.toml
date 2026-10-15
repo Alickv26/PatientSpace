@@ -5,9 +5,22 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 
+[[bin]]
+name = "patientspace-migrate"
+path = "src/bin/migrate.rs"
+
 [dependencies]
 patientspace-shared.workspace = true
 patientspace-fhir.workspace = true
+patientspace-sync.workspace = true
 thiserror.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+tokio.workspace = true
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "blocking"] }
+clap.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+axum.workspace = true
+chrono = "0.4"
+anyhow.workspace = true

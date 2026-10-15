@@ -7,9 +7,6 @@
 //!   - `SmartCareFhirAdapter` — preferred. Reads from SmartCare Pro's HIE FHIR endpoint.
 //!   - `SmartCareDbAdapter`   — direct read-only MySQL connection.
 //!   - `SmartCareCsvAdapter`  — fallback for SmartCare Legacy/Plus CSV/XML exports.
-//!
-//! v0.1 ships the trait + a stub of the FHIR adapter. DB and CSV adapters
-//! come once we know what access Petauke IT will give us.
 
 use patientspace_fhir::Patient;
 use thiserror::Error;
@@ -30,6 +27,9 @@ pub enum AdapterError {
 
     #[error("serialization error: {0}")]
     Serde(#[from] serde_json::Error),
+
+    #[error("http error: {0}")]
+    Http(String),
 }
 
 /// A pluggable SmartCare ingest adapter. Implementations produce a stream of
@@ -38,3 +38,15 @@ pub enum AdapterError {
 pub trait SmartCareIngestAdapter {
     fn iter_patients(&mut self) -> Box<dyn Iterator<Item = Result<Patient, AdapterError>> + '_>;
 }
+
+/// FHIR adapter — reads from a SmartCare Pro HIE FHIR R4 endpoint.
+pub mod fhir_adapter;
+
+/// Mock SmartCare HIE server for testing.
+pub mod mock_server;
+
+/// Migration validation report.
+pub mod validation;
+
+pub use fhir_adapter::{FhirAdapterConfig, SmartCareFhirAdapter};
+pub use validation::{ValidationReport, ValidationStatus};

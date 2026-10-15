@@ -96,10 +96,10 @@ All Phase 0 work is committed to `main`. No further work in this phase.
 
 | ID | Task | Status | Owner | Deps | Effort | Acceptance criteria |
 |---|---|---|---|---|---|---|
-| P1-T14 | Mock SmartCare HIE server | ⏳ | — | — | 2d | `crates/smartcare-adapter/mock-server/` (separate binary). Serves synthetic FHIR R4 Patient/Encounter/Observation resources at `http://127.0.0.1:9090/fhir`. Seed with 100 patients, 500 encounters, 1000 observations. |
-| P1-T15 | `SmartCareIngestAdapter` fleshed out | ⏳ | — | P1-T14 | 2d | Trait extended with `iter_encounters`, `iter_observations`. Concrete `SmartCareFhirAdapter` that reads from the mock server. |
-| P1-T16 | `patientspace migrate` CLI | ⏳ | — | P1-T15, P1-T10 | 4d | `patientspace migrate --source fhir --config smartcare.yml --dry-run` produces a count report. Without `--dry-run`, ingests every SmartCare resource as a genesis version (vector_clock `{F-XXXX: 1}`, parent_version_ids `[]`, kind `clinical`, with a `provenance: migrated-from-smartcare` extension). |
-| P1-T17 | Migration validation report | ⏳ | — | P1-T16 | 2d | `patientspace migrate --validate` cross-checks counts (SmartCare says N patients, PatientSpace has N patients). Detects duplicates via Smartcard + NRC + biometric dedup. Outputs JSON report. |
+| P1-T14 | Mock SmartCare HIE server | ✅ | Alickv26 | — | 2d | `crates/smartcare-adapter/mock-server/` (separate binary). Serves synthetic FHIR R4 Patient/Encounter/Observation resources at `http://127.0.0.1:9090/fhir`. Seed with 100 patients, 500 encounters, 1000 observations. |
+| P1-T15 | `SmartCareIngestAdapter` fleshed out | ✅ | Alickv26 | P1-T14 | 2d | Trait extended with `iter_encounters`, `iter_observations`. Concrete `SmartCareFhirAdapter` that reads from the mock server. |
+| P1-T16 | `patientspace migrate` CLI | ✅ | Alickv26 | P1-T15, P1-T10 | 4d | `patientspace migrate --source fhir --config smartcare.yml --dry-run` produces a count report. Without `--dry-run`, ingests every SmartCare resource as a genesis version (vector_clock `{F-XXXX: 1}`, parent_version_ids `[]`, kind `clinical`, with a `provenance: migrated-from-smartcare` extension). |
+| P1-T17 | Migration validation report | ✅ | Alickv26 | P1-T16 | 2d | `patientspace migrate --validate` cross-checks counts (SmartCare says N patients, PatientSpace has N patients). Detects duplicates via Smartcard + NRC + biometric dedup. Outputs JSON report. |
 
 ### Epic P1-E4: Petauke minimum clinical workflow (frontend)
 
