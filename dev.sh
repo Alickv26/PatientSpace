@@ -13,8 +13,6 @@
 #   ./dev.sh seed       # seed 50 synthetic patients
 #   ./dev.sh logs       # tail all logs
 
-set -euo pipefail
-
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PID_DIR="/tmp/patientspace-pids"
 LOG_DIR="/tmp/patientspace-logs"
@@ -48,7 +46,7 @@ start_process() {
     local name="$1"
     local pidfile="$PID_DIR/$name.pid"
     local logfile="$LOG_DIR/$name.log"
-    shift 3
+    shift 2
 
     if is_running "$pidfile"; then
         warn "$name is already running (PID $(cat "$pidfile"))"
@@ -58,12 +56,13 @@ start_process() {
     info "Starting $name..."
     "$@" >"$logfile" 2>&1 &
     echo $! >"$pidfile"
-    sleep 1
+    sleep 2
 
     if is_running "$pidfile"; then
-        info "  $name started (PID $(cat "$pidfile")) — logs: $logfile"
+        info "  $name started (PID $(cat "$pidfile"))"
     else
-        error "  $name failed to start. Check $logfile"
+        error "  $name failed to start. Last 10 lines of log:"
+        tail -10 "$logfile" 2>/dev/null || echo "    (no log file)"
         return 1
     fi
 }
@@ -106,6 +105,7 @@ cmd_start() {
     # Check for Rust
     if ! command -v cargo &>/dev/null; then
         if [[ -f "$HOME/.cargo/env" ]]; then
+            info "Loading Rust environment..."
             source "$HOME/.cargo/env"
         else
             error "Rust is not installed. Install with: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh"
@@ -121,55 +121,85 @@ cmd_start() {
 
     cd "$ROOT_DIR"
 
-    # 1. Build Rust binaries (if needed)
-    info "Building Rust binaries..."
-    cargo build -p patientspace-hub -p patientspace-core 2>&1 | tail -1
+    # 1. Build Rust binaries
+    info "Building Rust binaries (this may take a few minutes on first run)..."
+    if ! cargo build -p patientspace-hub -p patientspace-core 2>&1; then
+        error "Rust build failed. See errors above."
+        exit 1
+    fi
     info "  Rust build complete"
 
     # 2. Start hub
-    start_process "hub" "$LOG_DIR/hub.log" \
+    start_process "hub" \
         cargo run -p patientspace-hub
+    if [[ $? -ne 0 ]]; then
+        error "Failed to start hub. Aborting."
+        exit 1
+    fi
 
     # Wait for hub to be ready
     info "Waiting for hub to be ready..."
-    for i in $(seq 1 10); do
+    local hub_ready=false
+    for i in $(seq 1 15); do
         if curl -sf http://127.0.0.1:8081/health &>/dev/null; then
             info "  Hub is ready"
+            hub_ready=true
             break
         fi
         sleep 1
     done
+    if [[ "$hub_ready" != "true" ]]; then
+        error "Hub did not become ready in 15s. Check $LOG_DIR/hub.log"
+        tail -20 "$LOG_DIR/hub.log" 2>/dev/null
+        exit 1
+    fi
 
     # 3. Start core
+    info "Starting core..."
+    cd "$ROOT_DIR"
     PATIENTSPACE_FACILITY_ID=F-DEV1 \
     PATIENTSPACE_BIND=0.0.0.0:8080 \
     PATIENTSPACE_DATABASE_URL="sqlite:${ROOT_DIR}/patientspace-dev.db?mode=rwc" \
     PATIENTSPACE_HUB_URL=http://127.0.0.1:8081 \
     RUST_LOG=info \
-    start_process "core" "$LOG_DIR/core.log" \
+    start_process "core" \
         cargo run -p patientspace-core
+    if [[ $? -ne 0 ]]; then
+        error "Failed to start core. Aborting."
+        exit 1
+    fi
 
     # Wait for core to be ready
     info "Waiting for core to be ready..."
-    for i in $(seq 1 10); do
+    local core_ready=false
+    for i in $(seq 1 15); do
         if curl -sf http://127.0.0.1:8080/health &>/dev/null; then
             info "  Core is ready"
+            core_ready=true
             break
         fi
         sleep 1
     done
+    if [[ "$core_ready" != "true" ]]; then
+        error "Core did not become ready in 15s. Check $LOG_DIR/core.log"
+        tail -20 "$LOG_DIR/core.log" 2>/dev/null
+        exit 1
+    fi
 
     # 4. Install frontend deps (if needed)
     if [[ ! -d "$ROOT_DIR/frontend/node_modules" ]]; then
         info "Installing frontend dependencies..."
         cd "$ROOT_DIR/frontend"
-        bun install
+        if ! bun install; then
+            error "Failed to install frontend dependencies."
+            exit 1
+        fi
         cd "$ROOT_DIR"
     fi
 
     # 5. Start frontend
     cd "$ROOT_DIR/frontend"
-    start_process "frontend" "$LOG_DIR/frontend.log" \
+    start_process "frontend" \
         bun run dev -- --host 0.0.0.0
     cd "$ROOT_DIR"
 
