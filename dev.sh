@@ -46,7 +46,7 @@ start_process() {
     local name="$1"
     local pidfile="$PID_DIR/$name.pid"
     local logfile="$LOG_DIR/$name.log"
-    shift 2
+    shift 1
 
     if is_running "$pidfile"; then
         warn "$name is already running (PID $(cat "$pidfile"))"
