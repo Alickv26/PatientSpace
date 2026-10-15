@@ -14,7 +14,7 @@ members = [
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.99"
+rust-version = "1.85"
 authors = ["PatientSpace Foundation"]
 license = "AGPL-3.0-or-later"
 repository = "https://github.com/Alickv26/PatientSpace"
