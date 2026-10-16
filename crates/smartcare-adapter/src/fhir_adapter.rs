@@ -7,8 +7,6 @@
 //! (which is FHIR R5-compatible). The main difference is `resourceType` field
 //! naming and some R4 → R5 field migrations.
 
-use std::collections::HashMap;
-
 use patientspace_fhir::Patient;
 use patientspace_fhir::types::{
     AdministrativeGender, Address, ContactPoint, Extension, HumanName, Identifier,

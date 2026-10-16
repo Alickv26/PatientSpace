@@ -434,12 +434,12 @@ pub async fn list_resources(
     let total = matches.len() as u32;
     let paginated: Vec<Value> = matches.into_iter().skip(offset as usize).take(count as usize).collect();
 
-    Json(json!({
+    (StatusCode::OK, Json(json!({
         "resourceType": "Bundle",
         "type": "searchset",
         "total": total,
         "entry": paginated.into_iter().map(|r| json!({"resource": r})).collect::<Vec<_>>(),
-    }))
+    })))
 }
 
 /// `GET /fhir/{type}/{id}` — fetch any FHIR resource by id.
