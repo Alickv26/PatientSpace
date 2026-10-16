@@ -45,8 +45,16 @@ pub mod fhir_adapter;
 /// Mock SmartCare HIE server for testing.
 pub mod mock_server;
 
+/// CSV adapter — reads from SmartCare Legacy/Plus CSV exports.
+pub mod csv_adapter;
+
+/// DB adapter — reads from SmartCare Pro MySQL database dumps.
+pub mod db_adapter;
+
 /// Migration validation report.
 pub mod validation;
 
+pub use csv_adapter::{CsvAdapterConfig, SmartCareCsvAdapter};
+pub use db_adapter::{DbAdapterConfig, SmartCareDbAdapter};
 pub use fhir_adapter::{FhirAdapterConfig, SmartCareFhirAdapter};
 pub use validation::{ValidationReport, ValidationStatus};

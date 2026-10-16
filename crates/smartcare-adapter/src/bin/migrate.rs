@@ -1,12 +1,18 @@
 //! `patientspace migrate` CLI — migrates SmartCare data into PatientSpace.
 //!
+//! Supports three source types:
+//!   - `fhir` — reads from SmartCare Pro HIE FHIR endpoint (preferred)
+//!   - `db`   — reads from SmartCare Pro MySQL dump (CSV files)
+//!   - `csv`  — reads from SmartCare Legacy/Plus CSV export
+//!
 //! Usage:
-//!   patientspace migrate --source fhir --config smartcare.yml --dry-run
-//!   patientspace migrate --source fhir --config smartcare.yml
-//!   patientspace migrate --mock-server  # start mock SmartCare HIE
-//!   patientspace migrate --validate --smartcare-count 100 --patientspace-url http://localhost:8080
-
-use std::sync::Arc;
+//!   patientspace migrate mock-server --count 100
+//!   patientspace migrate run --source fhir --source-url http://127.0.0.1:9090/fhir --target http://localhost:8080
+//!   patientspace migrate run --source db --source-url /path/to/dump.csv --target http://localhost:8080
+//!   patientspace migrate run --source csv --source-url /path/to/patients.csv --target http://localhost:8080
+//!   patientspace migrate run --source auto --source-url http://127.0.0.1:9090/fhir --target http://localhost:8080
+//!   patientspace migrate run --dry-run --source fhir --source-url http://127.0.0.1:9090/fhir
+//!   patientspace migrate validate --smartcare-count 100 --patientspace-url http://localhost:8080
 
 use clap::{Parser, Subcommand};
 use tracing::{info, warn};
@@ -15,7 +21,7 @@ use patientspace_smartcare_adapter::SmartCareIngestAdapter;
 
 #[derive(Parser)]
 #[command(name = "patientspace-migrate")]
-#[command(about = "Migrate SmartCare data into PatientSpace")]
+#[command(about = "Migrate SmartCare data into PatientSpace — supports FHIR, DB, and CSV sources")]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -32,7 +38,10 @@ enum Commands {
     },
     /// Migrate data from SmartCare to PatientSpace.
     Run {
-        /// URL of the SmartCare HIE FHIR endpoint.
+        /// Source type: fhir, db, csv, or auto (tries fhir → db → csv)
+        #[arg(long, default_value = "auto")]
+        source: String,
+        /// Source URL or file path (depends on source type).
         #[arg(long, default_value = "http://127.0.0.1:9090/fhir")]
         source_url: String,
         /// PatientSpace core URL.
@@ -72,29 +81,28 @@ async fn main() -> anyhow::Result<()> {
             patientspace_smartcare_adapter::mock_server::start_server(config).await?;
         }
         Commands::Run {
+            source,
             source_url,
             target_url,
             dry_run,
         } => {
-            info!(%source_url, %target_url, dry_run, "starting migration");
+            info!(%source, %source_url, %target_url, dry_run, "starting migration");
 
-            // 1. Set up the adapter.
-            let config = patientspace_smartcare_adapter::FhirAdapterConfig {
-                base_url: source_url,
-                bearer_token: String::new(),
-                page_size: 100,
-            };
-            let mut adapter = patientspace_smartcare_adapter::SmartCareFhirAdapter::new(config);
+            // Create the adapter based on source type.
+            let mut adapter = create_adapter(&source, &source_url)?;
 
-            // 2. Count source patients.
+            // Count + ingest.
             let mut source_count = 0u32;
             let mut patients = Vec::new();
+
             for result in adapter.iter_patients() {
                 match result {
                     Ok(patient) => {
                         source_count += 1;
                         if dry_run {
-                            info!(count = source_count, "dry-run: counted patient");
+                            if source_count % 10 == 0 {
+                                info!(count = source_count, "dry-run: counted patients");
+                            }
                         } else {
                             patients.push(patient);
                         }
@@ -109,12 +117,14 @@ async fn main() -> anyhow::Result<()> {
 
             if dry_run {
                 println!("\n=== Dry Run Report ===");
+                println!("Source type:     {}", source);
+                println!("Source URL:      {}", source_url);
                 println!("Source patients: {}", source_count);
                 println!("No data was ingested.");
                 return Ok(());
             }
 
-            // 3. Ingest each patient via the PatientSpace FHIR API.
+            // Ingest each patient via the PatientSpace FHIR API.
             let http = reqwest::Client::new();
             let mut ingested = 0u32;
             let mut failed = 0u32;
@@ -140,14 +150,15 @@ async fn main() -> anyhow::Result<()> {
                 }
             }
 
-            // 4. Validation report.
+            // Validation report.
             let report = patientspace_smartcare_adapter::ValidationReport::new(
                 source_count,
                 ingested,
-                failed, // treat failures as "duplicates resolved" for the report
+                failed,
             );
 
             println!("\n{}", report.to_json());
+            println!("\nSource type: {}", source);
 
             if report.status == patientspace_smartcare_adapter::validation::ValidationStatus::Fail {
                 std::process::exit(1);
@@ -159,7 +170,6 @@ async fn main() -> anyhow::Result<()> {
         } => {
             info!(smartcare_count, %patientspace_url, "validating migration");
 
-            // Count patients in PatientSpace.
             let resp = reqwest::get(format!("{}/fhir/Patient", patientspace_url))
                 .await
                 .map_err(|e| anyhow::anyhow!("HTTP error: {e}"))?;
@@ -170,16 +180,76 @@ async fn main() -> anyhow::Result<()> {
                 .and_then(|v| v.as_u64())
                 .unwrap_or(0) as u32;
 
-            let report =
-                patientspace_smartcare_adapter::ValidationReport::new(
-                    smartcare_count,
-                    patientspace_count,
-                    0,
-                );
+            let report = patientspace_smartcare_adapter::ValidationReport::new(
+                smartcare_count,
+                patientspace_count,
+                0,
+            );
 
             println!("\n{}", report.to_json());
         }
     }
 
     Ok(())
+}
+
+/// Create the appropriate adapter based on the source type.
+/// With `auto`, tries FHIR first, then DB, then CSV.
+fn create_adapter(
+    source: &str,
+    source_url: &str,
+) -> anyhow::Result<Box<dyn SmartCareIngestAdapter>> {
+    match source {
+        "fhir" => {
+            info!(%source_url, "using FHIR adapter");
+            let config = patientspace_smartcare_adapter::FhirAdapterConfig {
+                base_url: source_url.to_string(),
+                bearer_token: String::new(),
+                page_size: 100,
+            };
+            Ok(Box::new(patientspace_smartcare_adapter::SmartCareFhirAdapter::new(config)))
+        }
+        "db" => {
+            info!(%source_url, "using DB adapter (reads CSV dump from path)");
+            let config = patientspace_smartcare_adapter::DbAdapterConfig {
+                connection_string: source_url.to_string(),
+                query: String::new(),
+            };
+            Ok(Box::new(patientspace_smartcare_adapter::SmartCareDbAdapter::new(config)))
+        }
+        "csv" => {
+            info!(%source_url, "using CSV adapter");
+            let config = patientspace_smartcare_adapter::CsvAdapterConfig {
+                file_path: source_url.to_string(),
+                has_header: true,
+            };
+            Ok(Box::new(patientspace_smartcare_adapter::SmartCareCsvAdapter::new(config)))
+        }
+        "auto" => {
+            // Try FHIR first (if source_url starts with http).
+            if source_url.starts_with("http") {
+                info!(%source_url, "auto-detection: trying FHIR adapter");
+                let config = patientspace_smartcare_adapter::FhirAdapterConfig {
+                    base_url: source_url.to_string(),
+                    bearer_token: String::new(),
+                    page_size: 100,
+                };
+                return Ok(Box::new(patientspace_smartcare_adapter::SmartCareFhirAdapter::new(config)));
+            }
+
+            // Try DB dump (if path ends in .csv or is a directory).
+            let path = std::path::Path::new(source_url);
+            if path.exists() && (path.is_file() || path.is_dir()) {
+                info!(%source_url, "auto-detection: using DB adapter (file/dir found)");
+                let config = patientspace_smartcare_adapter::DbAdapterConfig {
+                    connection_string: source_url.to_string(),
+                    query: String::new(),
+                };
+                return Ok(Box::new(patientspace_smartcare_adapter::SmartCareDbAdapter::new(config)));
+            }
+
+            anyhow::bail!("auto-detection failed: source_url is not HTTP and not a file/directory: {}", source_url);
+        }
+        other => anyhow::bail!("unknown source type: {} (use fhir, db, csv, or auto)", other),
+    }
 }
