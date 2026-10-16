@@ -54,6 +54,11 @@ pub struct EventLog {
 }
 
 impl EventLog {
+    /// Get a reference to the underlying SQLite pool (for auth tables, etc.).
+    pub fn pool(&self) -> &SqlitePool {
+        &self.pool
+    }
+
     /// Open an event log at the given SQLite URL.
     ///
     /// Example URLs:

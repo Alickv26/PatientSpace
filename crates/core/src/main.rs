@@ -47,15 +47,25 @@ async fn main() -> anyhow::Result<()> {
         log,
     };
 
+    // Create default admin user on first boot.
+    if let Err(e) = patientspace_core::auth::ensure_default_admin(state.log.pool()).await {
+        tracing::warn!(error = %e, "failed to create default admin");
+    }
+
     let app = Router::new()
         .route("/health", get(patientspace_core::http::health))
+        // Auth
+        .route("/api/auth/login", axum::routing::post(patientspace_core::auth::login))
+        .route("/api/auth/logout", axum::routing::post(patientspace_core::auth::logout))
+        .route("/api/auth/me", get(patientspace_core::auth::me))
+        // FHIR Patient
         .route(
             "/fhir/Patient",
             get(patientspace_core::http::list_patients)
                 .post(patientspace_core::http::create_patient),
         )
         .route("/fhir/Patient/{id}", get(patientspace_core::http::get_patient))
-        // Generic FHIR resource routes (Encounter, Observation, MedicationRequest, etc.)
+        // Generic FHIR resource routes
         .route(
             "/fhir/{resource_type}",
             get(patientspace_core::http::list_resources)
@@ -65,7 +75,7 @@ async fn main() -> anyhow::Result<()> {
             "/fhir/{resource_type}/{id}",
             get(patientspace_core::http::get_resource),
         )
-        // Analytics dashboard endpoints
+        // Analytics
         .route("/api/dashboards", get(patientspace_core::analytics::get_dashboards))
         .route("/api/dashboards/{id}/run", get(patientspace_core::analytics::run_dashboard))
         .with_state(state);

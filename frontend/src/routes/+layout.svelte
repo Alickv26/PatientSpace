@@ -8,6 +8,7 @@
   let theme = $state<'light' | 'dark'>('light');
   let online = $state(true);
   let pendingCount = $state(0);
+  let currentUser = $state<{ full_name: string; role: string } | null>(null);
 
   // Current path for active nav highlighting
   let currentPath = $state('/');
@@ -33,7 +34,6 @@
       if (resp.ok) {
         online = true;
         const health = await resp.json();
-        // pending = total envelopes - synced count (simplified: just show count)
         pendingCount = health.envelope_count ?? 0;
       } else {
         online = false;
@@ -41,6 +41,25 @@
     } catch {
       online = false;
     }
+  }
+
+  async function checkAuth() {
+    try {
+      const resp = await fetch('/api/auth/me');
+      if (resp.ok) {
+        currentUser = await resp.json();
+      } else {
+        currentUser = null;
+      }
+    } catch {
+      currentUser = null;
+    }
+  }
+
+  async function logout() {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    currentUser = null;
+    window.location.href = '/login';
   }
 
   onMount(() => {
@@ -65,8 +84,9 @@
       currentPath = window.location.pathname;
     });
 
-    // Check online status every 30s
+    // Check online + auth
     checkOnline();
+    checkAuth();
     const interval = setInterval(checkOnline, 30_000);
     return () => clearInterval(interval);
   });
@@ -140,11 +160,20 @@
       {/each}
     </nav>
     <div class="drawer-footer">
-      {#if online}
-        🟢 Online · {pendingCount} records
-      {:else}
-        🔴 Offline
+      {#if currentUser}
+        <div style="margin-bottom:8px">
+          👤 {currentUser.full_name}<br>
+          <span class="muted" style="font-size:11px">{currentUser.role}</span>
+        </div>
+        <button onclick={logout} style="width:100%;font-size:13px">Sign out</button>
       {/if}
+      <div style="margin-top:8px">
+        {#if online}
+          🟢 Online · {pendingCount} records
+        {:else}
+          🔴 Offline
+        {/if}
+      </div>
     </div>
   </div>
 

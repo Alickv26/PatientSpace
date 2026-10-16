@@ -75,6 +75,10 @@ dotenvy = "0.15"
 # CLI
 clap = { version = "4", features = ["derive"] }
 
+# Password hashing
+argon2 = "0.5"
+hex = "0.4"
+
 # Internal crates (path)
 patientspace-shared = { path = "crates/shared" }
 patientspace-fhir = { path = "crates/fhir" }
