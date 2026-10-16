@@ -55,6 +55,16 @@ async fn main() -> anyhow::Result<()> {
                 .post(patientspace_core::http::create_patient),
         )
         .route("/fhir/Patient/{id}", get(patientspace_core::http::get_patient))
+        // Generic FHIR resource routes (Encounter, Observation, MedicationRequest, etc.)
+        .route(
+            "/fhir/{resource_type}",
+            get(patientspace_core::http::list_resources)
+                .post(patientspace_core::http::create_resource),
+        )
+        .route(
+            "/fhir/{resource_type}/{id}",
+            get(patientspace_core::http::get_resource),
+        )
         .with_state(state);
 
     let addr: SocketAddr = cfg.bind.parse()?;

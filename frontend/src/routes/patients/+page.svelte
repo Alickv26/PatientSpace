@@ -87,10 +87,12 @@
   <div class="card"><p class="muted">Loading...</p></div>
 {:else if patients.length === 0}
   <div class="card">
-    <p class="muted">
-      {search ? 'No patients match your search.' : 'No patients yet.'}
-      {!search ? '<br><a href="/patients/new">Register the first patient</a>' : ''}
-    </p>
+    {#if search}
+      <p class="muted">No patients match your search.</p>
+    {:else}
+      <p class="muted">No patients yet.</p>
+      <a href="/patients/new"><button class="primary mt-2">Register the first patient</button></a>
+    {/if}
   </div>
 {:else}
   <div class="table-wrap">

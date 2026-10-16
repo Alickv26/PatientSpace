@@ -1,10 +1,13 @@
 //! Axum handlers for the FHIR REST facade.
 //!
 //! Endpoints:
-//!   - `GET  /health`             — liveness probe + envelope count
-//!   - `POST /fhir/Patient`       — create a Patient (seals + ingests a PSEP envelope)
-//!   - `GET  /fhir/Patient`       — list Patients (paginated, with optional identifier search)
-//!   - `GET  /fhir/Patient/{id}`  — fetch a single Patient by resource_id
+//!   - `GET  /health`                        — liveness probe + envelope count
+//!   - `POST /fhir/Patient`                  — create a Patient (seals + ingests a PSEP envelope)
+//!   - `GET  /fhir/Patient`                  — list Patients (paginated, with optional identifier search)
+//!   - `GET  /fhir/Patient/{id}`             — fetch a single Patient by resource_id
+//!   - `POST /fhir/{type}`                   — create any FHIR resource (Encounter, Observation, etc.)
+//!   - `GET  /fhir/{type}`                   — list any FHIR resource type
+//!   - `GET  /fhir/{type}/{id}`             — fetch any FHIR resource by resource_id
 //!
 //! All write paths go through [`patientspace_sync::EnvelopeBuilder`] — the
 //! local SQLite log is the source of truth, never bypassed. Reads decrypt
@@ -336,6 +339,140 @@ fn now_unix_ms() -> u64 {
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_millis() as u64)
         .unwrap_or(0)
+}
+
+// -----------------------------------------------------------------
+// Generic FHIR resource endpoints (Encounter, Observation, etc.)
+// -----------------------------------------------------------------
+
+/// `POST /fhir/{type}` — create any FHIR resource.
+pub async fn create_resource(
+    State(state): State<AppState>,
+    Path(resource_type): Path<String>,
+    body: Bytes,
+) -> impl IntoResponse {
+    let mut resource: Value = match serde_json::from_slice(&body) {
+        Ok(v) => v,
+        Err(e) => return outcome(StatusCode::BAD_REQUEST, "invalid", &e.to_string()),
+    };
+
+    match resource.get("resourceType").and_then(Value::as_str) {
+        Some(rt) if rt == resource_type => {}
+        Some(other) => {
+            return outcome(StatusCode::BAD_REQUEST, "invalid",
+                &format!("expected resourceType={resource_type}, got {other}"));
+        }
+        None => { resource["resourceType"] = json!(resource_type); }
+    }
+
+    let resource_id = ResourceId::new();
+    resource["id"] = json!(resource_id.to_string());
+
+    let plaintext = match serde_json::to_vec(&resource) {
+        Ok(b) => b,
+        Err(e) => return outcome(StatusCode::INTERNAL_SERVER_ERROR, "exception", &e.to_string()),
+    };
+
+    let author_pub = state.keypair.public_keys();
+    let builder = EnvelopeBuilder {
+        version_id: VersionId::new(),
+        resource_id: resource_id.clone(),
+        resource_type: resource_type.clone(),
+        vector_clock: VectorClock::from_facility(&state.facility_id, 1),
+        parent_version_ids: vec![],
+        author_facility_id: state.facility_id.clone(),
+        author_clinician_id: ClinicianId::new(),
+        created_at_unix_ms: now_unix_ms(),
+        kind: ResourceKind::Clinical,
+        plaintext,
+    };
+
+    let recipients = vec![(&state.facility_id, &author_pub)];
+    let envelope = match builder.seal(state.keypair.as_ref(), &recipients) {
+        Ok(e) => e,
+        Err(e) => return outcome(StatusCode::INTERNAL_SERVER_ERROR, "exception", &e.to_string()),
+    };
+
+    if let Err(e) = state.log.ingest(&envelope).await {
+        return outcome(StatusCode::INTERNAL_SERVER_ERROR, "exception", &e.to_string());
+    }
+
+    tracing::info!(%resource_type, %resource_id, "FHIR resource created");
+    (StatusCode::CREATED, Json(resource))
+}
+
+/// `GET /fhir/{type}` — list any FHIR resource type.
+pub async fn list_resources(
+    State(state): State<AppState>,
+    Path(resource_type): Path<String>,
+    Query(q): Query<PatientQuery>,
+) -> impl IntoResponse {
+    let count = q.count.unwrap_or(50).clamp(1, 200);
+    let offset = q.offset.unwrap_or(0);
+
+    let envelopes = match state.log.list_by_type(&resource_type, 10_000).await {
+        Ok(v) => v,
+        Err(e) => return outcome(StatusCode::INTERNAL_SERVER_ERROR, "exception", &e.to_string()),
+    };
+
+    let mut latest_per_resource: HashMap<Uuid, Envelope> = HashMap::new();
+    for env in envelopes {
+        latest_per_resource.entry(env.resource_id).or_insert(env);
+    }
+    let mut latest: Vec<Envelope> = latest_per_resource.into_values().collect();
+    latest.sort_by(|a, b| b.created_at_unix_ms.cmp(&a.created_at_unix_ms));
+
+    let mut matches: Vec<Value> = Vec::new();
+    for env in &latest {
+        if let Ok(plaintext) = env.open(&state.facility_id, state.keypair.as_ref()) {
+            if let Ok(resource) = serde_json::from_slice::<Value>(&plaintext) {
+                matches.push(resource);
+            }
+        }
+    }
+
+    let total = matches.len() as u32;
+    let paginated: Vec<Value> = matches.into_iter().skip(offset as usize).take(count as usize).collect();
+
+    Json(json!({
+        "resourceType": "Bundle",
+        "type": "searchset",
+        "total": total,
+        "entry": paginated.into_iter().map(|r| json!({"resource": r})).collect::<Vec<_>>(),
+    }))
+}
+
+/// `GET /fhir/{type}/{id}` — fetch any FHIR resource by id.
+pub async fn get_resource(
+    State(state): State<AppState>,
+    Path((resource_type, id)): Path<(String, String)>,
+) -> impl IntoResponse {
+    let resource_id = match parse_resource_id(&id) {
+        Some(r) => r,
+        None => return outcome(StatusCode::NOT_FOUND, "not-found",
+            &format!("{resource_type} {id} not found")),
+    };
+
+    let latest = match state.log.latest_for_resource(&resource_id).await {
+        Ok(env) => env,
+        Err(patientspace_sync::LogError::NotFound(_)) => {
+            return outcome(StatusCode::NOT_FOUND, "not-found",
+                &format!("{resource_type} {id} not found"));
+        }
+        Err(e) => return outcome(StatusCode::INTERNAL_SERVER_ERROR, "exception", &e.to_string()),
+    };
+
+    let plaintext = match latest.open(&state.facility_id, state.keypair.as_ref()) {
+        Ok(b) => b,
+        Err(e) => return outcome(StatusCode::INTERNAL_SERVER_ERROR, "exception", &e.to_string()),
+    };
+
+    let resource: Value = match serde_json::from_slice(&plaintext) {
+        Ok(v) => v,
+        Err(e) => return outcome(StatusCode::INTERNAL_SERVER_ERROR, "exception", &e.to_string()),
+    };
+
+    (StatusCode::OK, Json(resource))
 }
 
 #[cfg(test)]
