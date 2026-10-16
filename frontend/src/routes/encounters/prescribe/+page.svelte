@@ -1,19 +1,88 @@
 <script lang="ts">
   import { page } from '$app/state';
+  import { goto } from '$app/navigation';
 
   let encounterId = $derived(page.url.searchParams.get('encounter') ?? '');
+  let patientId = $derived(page.url.searchParams.get('patient') ?? '');
 
   let medication = $state('');
   let atcCode = $state('');
   let dose = $state('');
   let frequency = $state('');
   let duration = $state('');
+  let submitting = $state(false);
   let saved = $state(false);
+  let error = $state('');
 
-  function submit(e: Event) {
+  async function submit(e: Event) {
     e.preventDefault();
-    saved = true;
-    setTimeout(() => (saved = false), 3000);
+    error = '';
+    submitting = true;
+
+    try {
+      const body: Record<string, unknown> = {
+        resourceType: 'MedicationRequest',
+        status: 'active',
+        intent: 'order',
+        authoredOn: new Date().toISOString(),
+      };
+
+      if (patientId) {
+        body.subject = { reference: `Patient/${patientId}` };
+      }
+      if (encounterId) {
+        body.encounter = { reference: `Encounter/${encounterId}` };
+      }
+
+      // Medication coding
+      if (medication || atcCode) {
+        const medCode: Record<string, unknown> = {};
+        if (atcCode) {
+          medCode.coding = [{ system: 'http://www.whocc.no/atc', code: atcCode, display: medication || atcCode }];
+        }
+        medCode.text = medication || atcCode;
+        body.medicationCodeableConcept = medCode;
+      }
+
+      // Dosage instruction
+      const dosageInstruction: Record<string, unknown> = {};
+      if (dose) dosageInstruction.text = dose;
+      if (frequency) {
+        dosageInstruction.timing = {
+          repeat: {
+            code: { coding: [{ system: 'http://terminology.hl7.org/CodeSystem/v3-GTSAbbreviation', code: frequency }] },
+          },
+        };
+      }
+      if (duration) {
+        dosageInstruction.timing = dosageInstruction.timing || {};
+        if (dosageInstruction.timing) {
+          dosageInstruction.timing.repeat = dosageInstruction.timing.repeat || {};
+          dosageInstruction.timing.repeat.boundsDuration = { value: parseInt(duration), unit: 'd', code: 'd' };
+        }
+      }
+      if (Object.keys(dosageInstruction).length > 0) {
+        body.dosageInstruction = [dosageInstruction];
+      }
+
+      const resp = await fetch('/fhir/MedicationRequest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      if (!resp.ok) throw new Error(`Failed: ${resp.status}`);
+
+      saved = true;
+      setTimeout(() => {
+        if (patientId) goto(`/patients/${patientId}`);
+        else goto('/patients');
+      }, 1500);
+    } catch (err) {
+      error = err instanceof Error ? err.message : 'Unknown error';
+    } finally {
+      submitting = false;
+    }
   }
 </script>
 
@@ -21,6 +90,12 @@
   <a href="/patients"><button>← Back</button></a>
   <h1 style="font-size:20px;font-weight:700;margin:0;flex:1">Prescribe</h1>
 </div>
+
+{#if error}
+  <div class="card" style="border-color:var(--ps-danger);color:var(--ps-danger)">
+    {error}
+  </div>
+{/if}
 
 <form onsubmit={submit} style="display:grid;gap:16px">
   <div class="card">
@@ -54,16 +129,16 @@
         </select>
       </div>
       <div class="form-group">
-        <label>Duration</label>
-        <input bind:value={duration} placeholder="30 days" />
+        <label>Duration (days)</label>
+        <input type="number" bind:value={duration} placeholder="30" />
       </div>
     </div>
   </div>
 
-  <button class="primary w-full" type="submit" style="min-height:48px">
-    Prescribe
+  <button class="primary w-full" type="submit" disabled={submitting} style="min-height:48px">
+    {submitting ? 'Prescribing...' : 'Prescribe'}
   </button>
   {#if saved}
-    <p class="muted text-center">Prescribed (stub)</p>
+    <p class="muted text-center" style="color:var(--ps-primary)">Prescribed! Redirecting...</p>
   {/if}
 </form>

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { page } from '$app/state';
+  import { goto } from '$app/navigation';
   import { getPatient, displayName, type Patient } from '$lib/api/patient';
   import { onMount } from 'svelte';
 
@@ -10,7 +11,9 @@
   let icd10Code = $state('');
   let notes = $state('');
   let plan = $state('');
+  let submitting = $state(false);
   let saved = $state(false);
+  let error = $state('');
 
   onMount(async () => {
     if (patientId) {
@@ -22,10 +25,85 @@
     }
   });
 
-  function submit(e: Event) {
+  async function postFhir(type: string, body: Record<string, unknown>): Promise<string | null> {
+    const resp = await fetch(`/fhir/${type}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (resp.ok) {
+      const json = await resp.json();
+      return json.id;
+    }
+    return null;
+  }
+
+  async function submit(e: Event) {
     e.preventDefault();
-    saved = true;
-    setTimeout(() => (saved = false), 3000);
+    error = '';
+    submitting = true;
+
+    try {
+      // 1. Create an Encounter (consultation)
+      const encounterId = await postFhir('Encounter', {
+        resourceType: 'Encounter',
+        status: 'finished',
+        class: { system: 'http://terminology.hl7.org/CodeSystem/v3-ActCode', code: 'AMB', display: 'ambulatory' },
+        subject: { reference: `Patient/${patientId}` },
+        period: { start: new Date().toISOString() },
+      });
+
+      if (!encounterId) throw new Error('Failed to create encounter');
+
+      // 2. Create a Condition (diagnosis) linked to the encounter
+      if (diagnosisText || icd10Code) {
+        const condition: Record<string, unknown> = {
+          resourceType: 'Condition',
+          clinicalStatus: { coding: [{ system: 'http://terminology.hl7.org/CodeSystem/condition-clinical', code: 'active' }] },
+          subject: { reference: `Patient/${patientId}` },
+          encounter: { reference: `Encounter/${encounterId}` },
+        };
+
+        if (icd10Code) {
+          condition.code = {
+            coding: [{ system: 'http://hl7.org/fhir/sid/icd-10', code: icd10Code, display: diagnosisText || icd10Code }],
+            text: diagnosisText || icd10Code,
+          };
+        } else {
+          condition.code = { text: diagnosisText };
+        }
+
+        await postFhir('Condition', condition);
+      }
+
+      // 3. Save clinical notes as an Observation
+      if (notes || plan) {
+        await postFhir('Observation', {
+          resourceType: 'Observation',
+          status: 'final',
+          code: {
+            coding: [{ system: 'http://patientspace.org/loinc', code: 'clinical-notes', display: 'Clinical notes' }],
+            text: 'Clinical notes',
+          },
+          subject: { reference: `Patient/${patientId}` },
+          encounter: { reference: `Encounter/${encounterId}` },
+          effectiveDateTime: new Date().toISOString(),
+          component: [
+            notes ? { code: { text: 'Notes' }, valueString: notes } : null,
+            plan ? { code: { text: 'Plan' }, valueString: plan } : null,
+          ].filter(Boolean),
+        });
+      }
+
+      saved = true;
+      setTimeout(() => {
+        if (patientId) goto(`/patients/${patientId}`);
+      }, 1500);
+    } catch (err) {
+      error = err instanceof Error ? err.message : 'Unknown error';
+    } finally {
+      submitting = false;
+    }
   }
 </script>
 
@@ -38,6 +116,12 @@
   <div class="card" style="background:var(--ps-bg)">
     <strong>{displayName(patient)}</strong>
     <span class="muted"> · {patient.gender ?? '—'} · {patient.birthDate ?? 'DOB unknown'}</span>
+  </div>
+{/if}
+
+{#if error}
+  <div class="card" style="border-color:var(--ps-danger);color:var(--ps-danger)">
+    {error}
   </div>
 {/if}
 
@@ -66,10 +150,10 @@
     </div>
   </div>
 
-  <button class="primary w-full" type="submit" style="min-height:48px">
-    Save consultation
+  <button class="primary w-full" type="submit" disabled={submitting} style="min-height:48px">
+    {submitting ? 'Saving...' : 'Save consultation'}
   </button>
   {#if saved}
-    <p class="muted text-center">Saved (stub)</p>
+    <p class="muted text-center" style="color:var(--ps-primary)">Saved! Redirecting to patient...</p>
   {/if}
 </form>

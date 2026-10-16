@@ -1,5 +1,6 @@
 <script lang="ts">
   import { page } from '$app/state';
+  import { goto } from '$app/navigation';
   import { getPatient, displayName, type Patient } from '$lib/api/patient';
   import { onMount } from 'svelte';
 
@@ -13,7 +14,9 @@
   let weight = $state('');
   let complaint = $state('');
   let triageCategory = $state<'emergency' | 'urgent' | 'standard' | 'low'>('standard');
+  let submitting = $state(false);
   let saved = $state(false);
+  let error = $state('');
 
   onMount(async () => {
     if (patientId) {
@@ -25,10 +28,79 @@
     }
   });
 
-  function submit(e: Event) {
+  async function postFhir(type: string, body: Record<string, unknown>): Promise<string | null> {
+    const resp = await fetch(`/fhir/${type}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (resp.ok) {
+      const json = await resp.json();
+      return json.id;
+    }
+    return null;
+  }
+
+  async function submit(e: Event) {
     e.preventDefault();
-    saved = true;
-    setTimeout(() => (saved = false), 3000);
+    error = '';
+    submitting = true;
+
+    try {
+      // 1. Create an Encounter
+      const encounterId = await postFhir('Encounter', {
+        resourceType: 'Encounter',
+        status: 'finished',
+        class: { system: 'http://terminology.hl7.org/CodeSystem/v3-ActCode', code: 'AMB', display: 'ambulatory' },
+        subject: { reference: `Patient/${patientId}` },
+        period: { start: new Date().toISOString() },
+        reasonCode: [{ text: complaint || 'Not specified' }],
+        priority: { coding: [{ code: triageCategory, display: triageCategory }] },
+      });
+
+      if (!encounterId) throw new Error('Failed to create encounter');
+
+      // 2. Create vitals as Observations linked to the encounter
+      const now = new Date().toISOString();
+      const observations: Array<[string, string, string, string]> = [];
+
+      if (bpSystolic && bpDiastolic) {
+        observations.push(['85354-9', 'Blood pressure', `${bpSystolic}/${bpDiastolic}`, 'mmHg']);
+      }
+      if (heartRate) {
+        observations.push(['8867-4', 'Heart rate', heartRate, 'bpm']);
+      }
+      if (temperature) {
+        observations.push(['8310-5', 'Body temperature', temperature, '°C']);
+      }
+      if (weight) {
+        observations.push(['29463-7', 'Body weight', weight, 'kg']);
+      }
+
+      for (const [loinc, display, value, unit] of observations) {
+        await postFhir('Observation', {
+          resourceType: 'Observation',
+          status: 'final',
+          code: {
+            coding: [{ system: 'http://loinc.org', code: loinc, display }],
+            text: display,
+          },
+          subject: { reference: `Patient/${patientId}` },
+          encounter: { reference: `Encounter/${encounterId}` },
+          effectiveDateTime: now,
+          valueQuantity: { value: parseFloat(value), unit, system: 'http://unitsofmeasure.org' },
+        });
+      }
+
+      saved = true;
+      setTimeout(() => {
+        if (patientId) goto(`/patients/${patientId}`);
+      }, 1500);
+    } catch (err) {
+      error = err instanceof Error ? err.message : 'Unknown error';
+    } finally {
+      submitting = false;
+    }
   }
 
   const categories = [
@@ -51,8 +123,13 @@
   </div>
 {/if}
 
+{#if error}
+  <div class="card" style="border-color:var(--ps-danger);color:var(--ps-danger)">
+    {error}
+  </div>
+{/if}
+
 <form onsubmit={submit} style="display:grid;gap:16px">
-  <!-- Vitals -->
   <div class="card">
     <h2>Vitals</h2>
     <div class="form-grid cols-4">
@@ -79,7 +156,6 @@
     </div>
   </div>
 
-  <!-- Complaint -->
   <div class="card">
     <h2>Presenting complaint</h2>
     <div class="form-group">
@@ -87,21 +163,12 @@
     </div>
   </div>
 
-  <!-- Triage category -->
   <div class="card">
     <h2>Triage category</h2>
     <div class="triage-radios">
       {#each categories as cat}
-        <label
-          class="triage-radio {triageCategory === cat.value ? 'selected ' + cat.cls : ''}"
-        >
-          <input
-            type="radio"
-            name="triage"
-            value={cat.value}
-            bind:group={triageCategory}
-            style="width:auto;min-height:auto"
-          />
+        <label class="triage-radio {triageCategory === cat.value ? 'selected ' + cat.cls : ''}">
+          <input type="radio" name="triage" value={cat.value} bind:group={triageCategory} style="width:auto;min-height:auto" />
           <div>
             <div style="font-weight:600">{cat.label}</div>
             <div class="muted" style="font-size:13px">{cat.desc}</div>
@@ -111,10 +178,10 @@
     </div>
   </div>
 
-  <button class="primary w-full" type="submit" style="min-height:48px">
-    Save triage
+  <button class="primary w-full" type="submit" disabled={submitting} style="min-height:48px">
+    {submitting ? 'Saving...' : 'Save triage'}
   </button>
   {#if saved}
-    <p class="muted text-center">Saved (stub — no data persisted in v0.1)</p>
+    <p class="muted text-center" style="color:var(--ps-primary)">Saved! Redirecting to patient...</p>
   {/if}
 </form>
