@@ -99,6 +99,7 @@
     { href: '/encounters/consultation', label: 'Consultation', icon: '💊' },
     { href: '/encounters/prescribe', label: 'Prescribe', icon: '✍️' },
     { href: '/pharmacy/dispense', label: 'Dispense', icon: '📦' },
+    { href: '/conflicts', label: 'Conflicts', icon: '⚠️' },
     { href: '/dashboards', label: 'Dashboards', icon: '📊' },
   ];
 </script>

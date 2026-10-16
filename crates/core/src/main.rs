@@ -78,6 +78,9 @@ async fn main() -> anyhow::Result<()> {
         // Analytics
         .route("/api/dashboards", get(patientspace_core::analytics::get_dashboards))
         .route("/api/dashboards/{id}/run", get(patientspace_core::analytics::run_dashboard))
+        // Conflicts
+        .route("/api/conflicts", get(patientspace_core::conflicts::list_conflicts))
+        .route("/api/conflicts/{resource_id}", get(patientspace_core::conflicts::get_conflict))
         .with_state(state);
 
     let addr: SocketAddr = cfg.bind.parse()?;
