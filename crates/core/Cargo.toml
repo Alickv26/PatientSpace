@@ -24,7 +24,7 @@ patientspace-smartcare-adapter.workspace = true
 tokio.workspace = true
 axum.workspace = true
 tower.workspace = true
-tower-http.workspace = true
+tower-http = { workspace = true, features = ["fs"] }
 sqlx.workspace = true
 # duckdb will be added back when we wire up real analytics queries.
 # duckdb.workspace = true

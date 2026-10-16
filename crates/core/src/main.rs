@@ -81,6 +81,8 @@ async fn main() -> anyhow::Result<()> {
         // Conflicts
         .route("/api/conflicts", get(patientspace_core::conflicts::list_conflicts))
         .route("/api/conflicts/{resource_id}", get(patientspace_core::conflicts::get_conflict))
+        // Static frontend (serve built Svelte from /opt/patientspace/frontend or ./frontend/build)
+        .fallback(get(serve_frontend))
         .with_state(state);
 
     let addr: SocketAddr = cfg.bind.parse()?;
@@ -89,4 +91,43 @@ async fn main() -> anyhow::Result<()> {
     axum::serve(listener, app).await?;
 
     Ok(())
+}
+
+/// Serve the built Svelte frontend from disk.
+async fn serve_frontend(
+    req: axum::http::Request<axum::body::Body>,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+    use tower_http::services::ServeDir;
+    use tower::ServiceExt;
+
+    let path = req.uri().path().to_string();
+
+    // Try serving from known frontend directories.
+    for dir in &["/opt/patientspace/frontend", "frontend/build"] {
+        let serve_dir = ServeDir::new(dir);
+        let fake_req = axum::http::Request::builder()
+            .uri(&path)
+            .body(axum::body::Body::empty())
+            .unwrap();
+        match serve_dir.oneshot(fake_req).await {
+            Ok(resp) if resp.status() != axum::http::StatusCode::NOT_FOUND => {
+                return resp.into_response();
+            }
+            _ => {}
+        }
+    }
+
+    // Fallback to index.html for client-side routing (SvelteKit).
+    for dir in &["/opt/patientspace/frontend/index.html", "frontend/build/index.html"] {
+        if let Ok(content) = tokio::fs::read(dir).await {
+            return (
+                [(axum::http::header::CONTENT_TYPE, "text/html; charset=utf-8")],
+                content,
+            )
+                .into_response();
+        }
+    }
+
+    (axum::http::StatusCode::NOT_FOUND, "Frontend not found. Run in dev mode with: cd frontend && bun run dev").into_response()
 }
