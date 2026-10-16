@@ -65,6 +65,9 @@ async fn main() -> anyhow::Result<()> {
             "/fhir/{resource_type}/{id}",
             get(patientspace_core::http::get_resource),
         )
+        // Analytics dashboard endpoints
+        .route("/api/dashboards", get(patientspace_core::analytics::get_dashboards))
+        .route("/api/dashboards/{id}/run", get(patientspace_core::analytics::run_dashboard))
         .with_state(state);
 
     let addr: SocketAddr = cfg.bind.parse()?;

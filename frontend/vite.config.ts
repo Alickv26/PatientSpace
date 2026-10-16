@@ -25,6 +25,7 @@ export default defineConfig({
       '/fhir': 'http://127.0.0.1:8080',
       '/health': 'http://127.0.0.1:8080',
       '/psep': 'http://127.0.0.1:8080',
+      '/api': 'http://127.0.0.1:8080',
     },
   },
 });

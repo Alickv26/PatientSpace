@@ -12,5 +12,6 @@
 //!   `/fhir/Patient` POST/GET, `/fhir/Patient/{id}` GET) and the shared
 //!   [`AppState`][http::AppState] they run against.
 
+pub mod analytics;
 pub mod config;
 pub mod http;
