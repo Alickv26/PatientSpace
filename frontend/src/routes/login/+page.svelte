@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { goto } from '$app/navigation';
 
   let username = $state('');
   let password = $state('');
@@ -19,7 +18,7 @@
       });
 
       if (resp.ok) {
-        goto('/');
+        window.location.href = '/';
       } else {
         const data = await resp.json();
         error = data.error || 'Login failed';

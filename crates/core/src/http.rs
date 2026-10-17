@@ -18,7 +18,7 @@ use std::sync::Arc;
 
 use axum::body::Bytes;
 use axum::extract::{Path, Query, State};
-use axum::http::StatusCode;
+use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Json};
 use patientspace_shared::{ClinicianId, FacilityId, ResourceId, ResourceKind, VersionId};
 use patientspace_sync::{
@@ -28,11 +28,9 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 use uuid::Uuid;
 
+use crate::auth;
+
 /// Shared state handed to every axum handler.
-///
-/// Cheaply clonable — `EventLog` wraps a `SqlitePool` internally, and the
-/// `FacilityKeypair` is hidden behind an `Arc` so we never clone the
-/// secret signing/encryption material.
 #[derive(Clone)]
 pub struct AppState {
     pub facility_id: FacilityId,
@@ -78,8 +76,20 @@ pub async fn health(State(state): State<AppState>) -> impl IntoResponse {
 /// into the event log. Returns `201 Created` with the canonical Patient JSON.
 pub async fn create_patient(
     State(state): State<AppState>,
+    headers: HeaderMap,
     body: Bytes,
 ) -> impl IntoResponse {
+    // Resolve the clinician from the session cookie.
+    let clinician_id = match auth::get_clinician_from_headers(state.log.pool(), &headers).await {
+        Some(ctx) => {
+            match Uuid::parse_str(&ctx.clinician_id) {
+                Ok(u) => ClinicianId(u),
+                Err(_) => ClinicianId::new(),
+            }
+        }
+        None => ClinicianId::new(), // unauthenticated fallback
+    };
+
     // 1. Parse body as JSON.
     let mut patient: Value = match serde_json::from_slice(&body) {
         Ok(v) => v,
@@ -121,7 +131,7 @@ pub async fn create_patient(
         vector_clock: VectorClock::from_facility(&state.facility_id, 1),
         parent_version_ids: vec![],
         author_facility_id: state.facility_id.clone(),
-        author_clinician_id: ClinicianId::new(),
+        author_clinician_id: clinician_id,
         created_at_unix_ms: now_unix_ms(),
         kind: ResourceKind::Clinical,
         plaintext,
@@ -139,6 +149,7 @@ pub async fn create_patient(
         return outcome(StatusCode::INTERNAL_SERVER_ERROR, "exception", &e.to_string());
     }
 
+    tracing::info!(resource_id = %resource_id, "Patient created");
     // 8. 201 Created with the canonical Patient JSON.
     (StatusCode::CREATED, Json(patient))
 }
@@ -348,9 +359,21 @@ fn now_unix_ms() -> u64 {
 /// `POST /fhir/{type}` — create any FHIR resource.
 pub async fn create_resource(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path(resource_type): Path<String>,
     body: Bytes,
 ) -> impl IntoResponse {
+    // Resolve the clinician from the session cookie.
+    let clinician_id = match auth::get_clinician_from_headers(state.log.pool(), &headers).await {
+        Some(ctx) => {
+            match Uuid::parse_str(&ctx.clinician_id) {
+                Ok(u) => ClinicianId(u),
+                Err(_) => ClinicianId::new(),
+            }
+        }
+        None => ClinicianId::new(),
+    };
+
     let mut resource: Value = match serde_json::from_slice(&body) {
         Ok(v) => v,
         Err(e) => return outcome(StatusCode::BAD_REQUEST, "invalid", &e.to_string()),
@@ -381,7 +404,7 @@ pub async fn create_resource(
         vector_clock: VectorClock::from_facility(&state.facility_id, 1),
         parent_version_ids: vec![],
         author_facility_id: state.facility_id.clone(),
-        author_clinician_id: ClinicianId::new(),
+        author_clinician_id: clinician_id,
         created_at_unix_ms: now_unix_ms(),
         kind: ResourceKind::Clinical,
         plaintext,

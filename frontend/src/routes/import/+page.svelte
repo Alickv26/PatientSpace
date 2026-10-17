@@ -1,6 +1,5 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { goto } from '$app/navigation';
 
   let sourceType = $state<'fhir' | 'db' | 'csv' | 'auto'>('auto');
   let sourceUrl = $state('http://127.0.0.1:9090/fhir');
@@ -80,7 +79,7 @@
       importHistory = [result, ...importHistory];
 
       if (ingested > 0) {
-        setTimeout(() => goto('/patients'), 3000);
+        setTimeout(() => { window.location.href = '/patients'; }, 3000);
       }
     } catch (err) {
       error = err instanceof Error ? err.message : 'Import failed';

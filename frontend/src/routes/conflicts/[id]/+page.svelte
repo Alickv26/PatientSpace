@@ -1,7 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { page } from '$app/state';
-  import { goto } from '$app/navigation';
 
   let id = $derived(page.params.id);
   let conflict = $state<any>(null);
@@ -82,7 +81,7 @@
   function resolve() {
     // In v0.1, "resolving" just marks it as reviewed by navigating back.
     // In v0.2, this would POST a merge version with 2 parents.
-    goto('/conflicts');
+    window.location.href = '/conflicts';
   }
 
   onMount(load);
