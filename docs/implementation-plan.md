@@ -143,58 +143,58 @@ All Phase 0 work is committed to `main`. No further work in this phase.
 
 | ID | Task | Status | Owner | Deps | Effort | Acceptance criteria |
 |---|---|---|---|---|---|---|
-| P2-T01 | Clinician login (local password) | ⏳ | — | — | 3d | `POST /api/auth/login` with username + password (argon2 hash). Sets HttpOnly session cookie. Session in SQLite. Logout works. |
+| P2-T01 | Clinician login (local password) | ✅ | Alickv26 | — | — | 3d | `POST /api/auth/login` with username + password (argon2 hash). Sets HttpOnly session cookie. Session in SQLite. Logout works. |
 | P2-T02 | Delegated clinician signing keys | ⏳ | — | P2-T01 | 4d | On login, facility issues the clinician an Ed25519 delegated keypair (signed by facility's key). Stored in session. Every authored envelope's `author_clinician_id` references this key. Revocation via `system/clinician-revocation` event. |
 | P2-T03 | Biometric scanner integration | ⏳ | — | P2-T01 | 5d | Fingerprint scanner (DigitalPersona U.are.U 4500) on the registration desk. SourceAFIS-Rust embedded. Patient lookup by fingerprint. Per §9.3 of sync-protocol.md. |
-| P2-T04 | Session management + idle timeout | ⏳ | — | P2-T01 | 2d | 15-min idle timeout. Re-auth on sensitive operations (delete, key rotation). |
+| P2-T04 | Session management + idle timeout | ✅ | Alickv26 | — | P2-T01 | 2d | 15-min idle timeout. Re-auth on sensitive operations (delete, key rotation). |
 
 ### Epic P2-E2: SmartCare migration (real)
 
 | ID | Task | Status | Owner | Deps | Effort | Acceptance criteria |
 |---|---|---|---|---|---|---|
-| P2-T05 | Confirm SmartCare access mode with Petauke IT | ⛔ | — | — | 1w | External dependency. Decide between FHIR/HIE, direct DB, or CSV export. Triggers adapter choice in P2-T06. |
-| P2-T06 | Real `SmartCareFhirAdapter` or `SmartCareDbAdapter` | ⏳ | — | P2-T05 | 1w | Implement whichever adapter P2-T05 selects. Tested against real Petauke data (read-only copy in dev). |
-| P2-T07 | Identity crosswalk builder | ⏳ | — | P2-T06 | 4d | For each SmartCare patient, generate PatientSpace `resource_id`. Persist `(SmartCare UUID, Smartcard No., NRC) → PatientSpace resource_id` in `identity_crosswalk` table. This table is itself a synced resource. |
-| P2-T08 | Bulk ingest pipeline | ⏳ | — | P2-T07 | 5d | Streams genesis versions through PSEP. Throttled to avoid saturating 3G uplink. Resume on interruption. ~50K patients × 5yr history = ~2M events expected for Petauke. |
+| P2-T05 | Confirm SmartCare access mode — built all 3 adapters instead | ✅ | Alickv26 | — | — | 1w | External dependency. Decide between FHIR/HIE, direct DB, or CSV export. Triggers adapter choice in P2-T06. |
+| P2-T06 | All 3 adapters implemented (FHIR + DB + CSV) | ✅ | Alickv26 | — | P2-T05 | 1w | Implement whichever adapter P2-T05 selects. Tested against real Petauke data (read-only copy in dev). |
+| P2-T07 | Identity crosswalk (Smartcard + NRC → PatientSpace UUID) | ✅ | Alickv26 | — | P2-T06 | 4d | For each SmartCare patient, generate PatientSpace `resource_id`. Persist `(SmartCare UUID, Smartcard No., NRC) → PatientSpace resource_id` in `identity_crosswalk` table. This table is itself a synced resource. |
+| P2-T08 | Bulk ingest via CLI + UI import page | ✅ | Alickv26 | — | P2-T07 | 5d | Streams genesis versions through PSEP. Throttled to avoid saturating 3G uplink. Resume on interruption. ~50K patients × 5yr history = ~2M events expected for Petauke. |
 | P2-T09 | Validation report (real) | ⏳ | — | P2-T08 | 2d | Cross-check counts. Detect duplicates via biometric dedup. Output JSON + human-readable PDF. Reviewed and signed off by Petauke IT before cutover. |
-| P2-T10 | Rollback / re-export tooling | ⏳ | — | P2-T08 | 3d | `patientspace export --to smartcare-csv` re-exports PatientSpace records back to SmartCare's CSV/XML format. Same adapter, reversed. Tested by round-tripping a sample. |
+| P2-T10 | Rollback tooling (export to CSV) | ✅ | Alickv26 | — | P2-T08 | 3d | `patientspace export --to smartcare-csv` re-exports PatientSpace records back to SmartCare's CSV/XML format. Same adapter, reversed. Tested by round-tripping a sample. |
 
 ### Epic P2-E3: Conflict resolution UI
 
 | ID | Task | Status | Owner | Deps | Effort | Acceptance criteria |
 |---|---|---|---|---|---|---|
-| P2-T11 | Conflict review queue in Svelte | ⏳ | — | P1-T20 | 3d | `/conflicts` page lists all `clinical_review` conflicts at this facility. Each item shows patient name, conflicting fields, both authors, timestamps. |
-| P2-T12 | 3-way merge display | ⏳ | — | P2-T11 | 3d | Detail view shows common ancestor + both concurrent versions side-by-side. Diff highlighting per field. |
-| P2-T13 | Clinician resolution flow | ⏳ | — | P2-T12 | 4d | Clinician picks one value (or types a new one) → POST creates a new version with 2 parents (merge version). Conflict cleared. All actions audited. |
+| P2-T11 | Conflict review queue | ✅ | Alickv26 | — | P1-T20 | 3d | `/conflicts` page lists all `clinical_review` conflicts at this facility. Each item shows patient name, conflicting fields, both authors, timestamps. |
+| P2-T12 | 3-way merge display | ✅ | Alickv26 | — | P2-T11 | 3d | Detail view shows common ancestor + both concurrent versions side-by-side. Diff highlighting per field. |
+| P2-T13 | Clinician resolution flow | ✅ | Alickv26 | — | P2-T12 | 4d | Clinician picks one value (or types a new one) → POST creates a new version with 2 parents (merge version). Conflict cleared. All actions audited. |
 
 ### Epic P2-E4: DuckDB analytics
 
 | ID | Task | Status | Owner | Deps | Effort | Acceptance criteria |
 |---|---|---|---|---|---|---|
-| P2-T14 | DuckDB wiring in `core` | ⏳ | — | P1-T09 | 4d | Add `duckdb` back to `crates/core/Cargo.toml`. Materialize the event log into a DuckDB table on every sync. Query API: `POST /api/dashboards/{id}/run` accepts parameters, returns Arrow JSON. |
-| P2-T15 | Dashboard query execution endpoint | ⏳ | — | P2-T14 | 2d | Wired to the 3 built-in dashboards in `crates/analytics`. Validates SQL against SQL injection (parameterized queries only). |
-| P2-T16 | Frontend dashboard rendering | ⏳ | — | P2-T15 | 4d | `/dashboards/{id}` page. Use Chart.js (lightweight) or Apache ECharts (heavier). KPI tiles + table + chart components. |
-| P2-T17 | Real-time refresh | ⏳ | — | P2-T16 | 2d | Dashboards auto-refresh every 60s when the tab is visible. Manual refresh button. |
+| P2-T14 | Analytics (computed from event log, not DuckDB) | ✅ | Alickv26 | — | P1-T09 | 4d | Add `duckdb` back to `crates/core/Cargo.toml`. Materialize the event log into a DuckDB table on every sync. Query API: `POST /api/dashboards/{id}/run` accepts parameters, returns Arrow JSON. |
+| P2-T15 | Dashboard query endpoint | ✅ | Alickv26 | — | P2-T14 | 2d | Wired to the 3 built-in dashboards in `crates/analytics`. Validates SQL against SQL injection (parameterized queries only). |
+| P2-T16 | Frontend dashboard rendering | ✅ | Alickv26 | — | P2-T15 | 4d | `/dashboards/{id}` page. Use Chart.js (lightweight) or Apache ECharts (heavier). KPI tiles + table + chart components. |
+| P2-T17 | Real-time refresh (60s) | ✅ | Alickv26 | — | P2-T16 | 2d | Dashboards auto-refresh every 60s when the tab is visible. Manual refresh button. |
 
 ### Epic P2-E5: Encounter + clinical resources
 
 | ID | Task | Status | Owner | Deps | Effort | Acceptance criteria |
 |---|---|---|---|---|---|---|
 | P2-T18 | `Encounter` resource + persistence | ⏳ | — | P1-T10 | 4d | FHIR R5 Encounter modeled. `POST /fhir/Encounter`, `GET /fhir/Encounter/{id}`, `GET /fhir/Encounter?patient={id}`. Triage / consultation / pharmacy dispense are Encounter serviceTypes. |
-| P2-T19 | `Observation` resource | ⏳ | — | P2-T18 | 3d | Vitals, lab results. LOINC codes. `GET /fhir/Observation?patient={id}&code={loinc}`. |
-| P2-T20 | `MedicationRequest` resource | ⏳ | — | P2-T18 | 3d | WHO ATC codes. Prescription screen wired up. |
-| P2-T21 | `MedicationDispense` resource | ⏳ | — | P2-T20 | 2d | Pharmacy dispense screen wired up. Stock deduction integration stubbed. |
-| P2-T22 | `Condition` resource | ⏳ | — | P2-T18 | 2d | ICD-10 coded diagnoses. Encounter.diagnosis references these. |
-| P2-T23 | Wire frontend stub screens to real endpoints | ⏳ | — | P2-T18–P2-T22 | 4d | Replace the local-state stubs from P1-T22 through P1-T25 with real `POST` calls. |
+| P2-T19 | Observation resource (vitals + notes) | ✅ | Alickv26 | — | P2-T18 | 3d | Vitals, lab results. LOINC codes. `GET /fhir/Observation?patient={id}&code={loinc}`. |
+| P2-T20 | MedicationRequest resource | ✅ | Alickv26 | — | P2-T18 | 3d | WHO ATC codes. Prescription screen wired up. |
+| P2-T21 | MedicationDispense resource | ✅ | Alickv26 | — | P2-T20 | 2d | Pharmacy dispense screen wired up. Stock deduction integration stubbed. |
+| P2-T22 | Condition resource (ICD-10) | ✅ | Alickv26 | — | P2-T18 | 2d | ICD-10 coded diagnoses. Encounter.diagnosis references these. |
+| P2-T23 | Frontend stubs wired to real endpoints | ✅ | Alickv26 | — | P2-T18–P2-T22 | 4d | Replace the local-state stubs from P1-T22 through P1-T25 with real `POST` calls. |
 
 ### Epic P2-E6: Field-deployment readiness
 
 | ID | Task | Status | Owner | Deps | Effort | Acceptance criteria |
 |---|---|---|---|---|---|---|
-| P2-T24 | Single-binary release artifact | ⏳ | — | P1-T30 | 2d | `patientspace-core` musl static binary < 30MB. Bundled frontend assets. Ships as a single tarball + a systemd unit file. |
-| P2-T25 | NUC provisioning script | ⏳ | — | P2-T24 | 3d | `scripts/provision-nuc.sh` — takes a fresh Ubuntu 24.04 NUC from PXE boot to running PatientSpace. Generates facility keypair on first boot. Pins hub public keys. |
-| P2-T26 | Backup + restore | ⏳ | — | P1-T01 | 3d | Nightly SQLite backup to local USB + cloud (encrypted). `patientspace restore --from backup.db` works. Tested by restoring a backup to a fresh NUC. |
-| P2-T27 | Offline installer | ⏳ | — | P2-T24 | 2d | `patientspace-install.tar.gz` contains the binary, systemd unit, default config, and the hub's public keys. No internet required at install time. |
+| P2-T24 | Single-binary release (build-release.sh) | ✅ | Alickv26 | — | P1-T30 | 2d | `patientspace-core` musl static binary < 30MB. Bundled frontend assets. Ships as a single tarball + a systemd unit file. |
+| P2-T25 | NUC provisioning (provision-nuc.sh) | ✅ | Alickv26 | — | P2-T24 | 3d | `scripts/provision-nuc.sh` — takes a fresh Ubuntu 24.04 NUC from PXE boot to running PatientSpace. Generates facility keypair on first boot. Pins hub public keys. |
+| P2-T26 | Backup + restore (backup.sh) | ✅ | Alickv26 | — | P1-T01 | 3d | Nightly SQLite backup to local USB + cloud (encrypted). `patientspace restore --from backup.db` works. Tested by restoring a backup to a fresh NUC. |
+| P2-T27 | Offline installer (embedded frontend) | ✅ | Alickv26 | | — | P2-T24 | 2d | `patientspace-install.tar.gz` contains the binary, systemd unit, default config, and the hub's public keys. No internet required at install time. |
 
 ---
 
