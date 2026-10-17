@@ -28,24 +28,34 @@
     try {
       patient = await getPatient(id);
 
-      // Fetch encounters, observations, and medications for this patient
+      // Fetch ALL encounters, observations, and medications
+      // then filter client-side by patient reference.
+      // (The backend doesn't yet support ?patient= filtering for generic resources.)
       const [encResp, obsResp, medResp] = await Promise.all([
-        fetch(`/fhir/Encounter?_count=100`).catch(() => null),
-        fetch(`/fhir/Observation?_count=100`).catch(() => null),
-        fetch(`/fhir/MedicationRequest?_count=100`).catch(() => null),
+        fetch(`/fhir/Encounter?_count=500`).catch(() => null),
+        fetch(`/fhir/Observation?_count=500`).catch(() => null),
+        fetch(`/fhir/MedicationRequest?_count=500`).catch(() => null),
       ]);
+
+      const patientRef = `Patient/${patient!.id}`;
 
       if (encResp?.ok) {
         const bundle = await encResp.json();
-        encounters = (bundle.entry ?? []).map((e: any) => e.resource);
+        encounters = (bundle.entry ?? [])
+          .map((e: any) => e.resource)
+          .filter((e: any) => e.subject?.reference === patientRef);
       }
       if (obsResp?.ok) {
         const bundle = await obsResp.json();
-        observations = (bundle.entry ?? []).map((e: any) => e.resource);
+        observations = (bundle.entry ?? [])
+          .map((e: any) => e.resource)
+          .filter((o: any) => o.subject?.reference === patientRef);
       }
       if (medResp?.ok) {
         const bundle = await medResp.json();
-        medications = (bundle.entry ?? []).map((e: any) => e.resource);
+        medications = (bundle.entry ?? [])
+          .map((e: any) => e.resource)
+          .filter((m: any) => m.subject?.reference === patientRef);
       }
     } catch (err) {
       error = err instanceof Error ? err.message : 'Failed to load patient';
@@ -57,26 +67,53 @@
   onMount(load);
 
   function encounterReason(e: any): string {
-    return e.reasonCode?.[0]?.text ?? '—';
+    return e.reasonCode?.[0]?.text ?? e.priority?.coding?.[0]?.display ?? 'General visit';
   }
 
   function encounterDate(e: any): string {
-    return e.period?.start ? new Date(e.period.start).toLocaleDateString() : '—';
+    const start = e.period?.start;
+    if (!start) return '—';
+    try { return new Date(start).toLocaleString(); } catch { return start; }
   }
 
   function observationDisplay(o: any): string {
-    const code = o.code?.text ?? o.code?.coding?.[0]?.display ?? '—';
-    const value = o.valueQuantity?.value ?? o.valueString ?? '—';
-    const unit = o.valueQuantity?.unit ?? '';
-    return `${code}: ${value} ${unit}`.trim();
+    const code = o.code?.text ?? o.code?.coding?.[0]?.display ?? 'Unknown';
+    // Handle valueQuantity (vitals) vs valueString (notes)
+    if (o.valueQuantity) {
+      return `${code}: ${o.valueQuantity.value} ${o.valueQuantity.unit ?? ''}`.trim();
+    }
+    if (o.valueString) {
+      return `${code}: ${o.valueString}`;
+    }
+    // Handle component (clinical notes)
+    if (o.component && o.component.length > 0) {
+      return o.component.map((c: any) => {
+        const label = c.code?.text ?? 'Note';
+        const val = c.valueString ?? '—';
+        return `${label}: ${val}`;
+      }).join(' | ');
+    }
+    return code;
   }
 
   function observationDate(o: any): string {
-    return o.effectiveDateTime ? new Date(o.effectiveDateTime).toLocaleDateString() : '—';
+    const dt = o.effectiveDateTime;
+    if (!dt) return '—';
+    try { return new Date(dt).toLocaleString(); } catch { return dt; }
   }
 
   function medicationDisplay(m: any): string {
-    return m.medicationCodeableConcept?.text ?? m.medicationCodeableConcept?.coding?.[0]?.display ?? '—';
+    const med = m.medicationCodeableConcept?.text
+      ?? m.medicationCodeableConcept?.coding?.[0]?.display
+      ?? 'Unknown medication';
+    const dose = m.dosageInstruction?.[0]?.text ?? '';
+    return dose ? `${med} (${dose})` : med;
+  }
+
+  function medicationDate(m: any): string {
+    const dt = m.authoredOn;
+    if (!dt) return '—';
+    try { return new Date(dt).toLocaleString(); } catch { return dt; }
   }
 </script>
 
@@ -87,9 +124,7 @@
 {#if loading}
   <div class="card"><p class="muted">Loading...</p></div>
 {:else if error}
-  <div class="card" style="border-color:var(--ps-danger);color:var(--ps-danger)">
-    {error}
-  </div>
+  <div class="card" style="border-color:var(--ps-danger);color:var(--ps-danger)">{error}</div>
 {:else if patient}
   <div class="card">
     <h1 style="font-size:22px;font-weight:700;margin:0 0 4px">{displayName(patient)}</h1>
@@ -164,9 +199,7 @@
       {#if encounters.length > 0}
         <div class="table-wrap">
           <table class="data">
-            <thead>
-              <tr><th>Date</th><th>Reason</th><th>Status</th></tr>
-            </thead>
+            <thead><tr><th>Date</th><th>Reason / Category</th><th>Status</th></tr></thead>
             <tbody>
               {#each encounters as e (e.id)}
                 <tr>
@@ -181,16 +214,11 @@
       {:else}
         <p class="muted">No encounters recorded yet.</p>
       {/if}
-      <a href="/encounters/triage?patient={patient.id}">
-        <button class="primary mt-2">Start triage encounter</button>
-      </a>
     {:else if activeTab === 'observations'}
       {#if observations.length > 0}
         <div class="table-wrap">
           <table class="data">
-            <thead>
-              <tr><th>Date</th><th>Observation</th></tr>
-            </thead>
+            <thead><tr><th>Date</th><th>Observation</th></tr></thead>
             <tbody>
               {#each observations as o (o.id)}
                 <tr>
@@ -208,12 +236,11 @@
       {#if medications.length > 0}
         <div class="table-wrap">
           <table class="data">
-            <thead>
-              <tr><th>Medication</th><th>Status</th></tr>
-            </thead>
+            <thead><tr><th>Date</th><th>Medication</th><th>Status</th></tr></thead>
             <tbody>
               {#each medications as m (m.id)}
                 <tr>
+                  <td>{medicationDate(m)}</td>
                   <td>{medicationDisplay(m)}</td>
                   <td>{m.status ?? '—'}</td>
                 </tr>
@@ -224,9 +251,6 @@
       {:else}
         <p class="muted">No medications prescribed yet.</p>
       {/if}
-      <a href="/encounters/prescribe?encounter={patient.id}">
-        <button class="primary mt-2">Prescribe medication</button>
-      </a>
     {/if}
   </div>
 {/if}

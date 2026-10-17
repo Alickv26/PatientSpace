@@ -1,6 +1,5 @@
 <script lang="ts">
   import { createPatient } from '$lib/api/patient';
-  import { goto } from '$app/navigation';
 
   let smartcard = $state('');
   let nrc = $state('');
@@ -26,7 +25,7 @@
         gender,
         birthDate: birthDate || undefined,
       });
-      goto(`/patients/${patient.id}`);
+      window.location.href = `/patients/${patient.id}`;
     } catch (err) {
       error = err instanceof Error ? err.message : 'Unknown error';
     } finally {
