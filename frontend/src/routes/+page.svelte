@@ -58,8 +58,10 @@
   <div class="form-grid cols-2">
     <a href="/patients/new"><button class="primary">Register patient</button></a>
     <a href="/patients"><button>Patient list</button></a>
+    <a href="/import"><button class="primary">Import from SmartCare</button></a>
     <a href="/encounters/triage"><button>Start triage</button></a>
     <a href="/dashboards"><button>Dashboards</button></a>
+    <a href="/conflicts"><button>Conflict queue</button></a>
   </div>
 </div>
 
