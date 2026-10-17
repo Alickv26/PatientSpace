@@ -106,6 +106,17 @@
     </div>
   {/if}
 
+  <!-- Clinical actions -->
+  <div class="card">
+    <h2>Clinical actions</h2>
+    <div class="form-grid cols-2">
+      <a href="/encounters/triage?patient={patient.id}"><button class="primary">🩺 Start triage</button></a>
+      <a href="/encounters/consultation?patient={patient.id}"><button class="primary">📋 New consultation</button></a>
+      <a href="/encounters/prescribe?patient={patient.id}"><button>✍️ Prescribe medication</button></a>
+      <a href="/pharmacy/dispense?patient={patient.id}"><button>📦 Pharmacy dispense</button></a>
+    </div>
+  </div>
+
   <div class="card">
     <h2>Demographics</h2>
     <div class="form-grid cols-2">
